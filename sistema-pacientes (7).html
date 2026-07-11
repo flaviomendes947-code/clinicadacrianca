@@ -1,0 +1,3019 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<div id="app-root"></div>
+<style>
+  :root{
+    --bg:#f0f4f9;
+    --panel:#ffffff;
+    --panel2:#f7f9fc;
+    --border:#e2e8f0;
+    --border-strong:#c9d4e3;
+    --text:#1a2233;
+    --muted:#64748b;
+    --accent:#3b6ff0;
+    --accent-soft:#ebf0fe;
+    --accent-dark:#2454c7;
+    --danger:#e03e3e;
+    --danger-soft:#fef2f2;
+    --ok:#16a34a;
+    --ok-soft:#f0fdf4;
+    --warn:#d97706;
+    --warn-soft:#fffbeb;
+    --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
+    --shadow-md: 0 4px 16px rgba(0,0,0,.10);
+  }
+  #app-root, #app-root *{ box-sizing:border-box; font-family: -apple-system, "Segoe UI", Inter, Roboto, sans-serif; }
+  #app-root{ background:var(--bg); color:var(--text); min-height:100%; padding:28px 24px 60px; }
+
+  .header{ display:flex; align-items:center; gap:16px; margin-bottom:18px; }
+  .logo{ width:52px; height:52px; border-radius:14px; background:var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 12px rgba(59,111,240,.35); }
+  .logo svg{ width:24px; height:24px; }
+  .header h1{ font-size:19px; font-weight:700; margin:0; color:var(--text); }
+  .header p{ font-size:13px; color:var(--muted); margin:3px 0 0; }
+
+  .banner{ background:var(--warn-soft); border:1px solid #fde68a; color:var(--warn); border-radius:12px; padding:13px 16px; font-size:13px; line-height:1.5; margin-bottom:22px; display:flex; gap:10px; }
+
+  .tabs{ display:flex; gap:8px; margin-bottom:26px; flex-wrap:wrap; }
+  .tab{ background:var(--panel); border:1px solid var(--border); color:var(--muted); padding:10px 16px; border-radius:10px; font-size:13.5px; cursor:pointer; font-weight:500; display:flex; align-items:center; gap:8px; transition:.15s; box-shadow:var(--shadow); }
+  .tab:hover{ border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .tab.active{ background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:0 4px 12px rgba(59,111,240,.3); }
+
+  .section-title{ font-size:11.5px; letter-spacing:.07em; color:var(--muted); font-weight:700; margin:24px 0 12px; text-transform:uppercase; }
+  .section-title:first-child{ margin-top:0; }
+
+  .grid{ display:grid; gap:16px; }
+  .grid-3{ grid-template-columns:repeat(3,1fr); }
+  .grid-2{ grid-template-columns:repeat(2,1fr); }
+  @media(max-width:820px){ .grid-3,.grid-2{ grid-template-columns:1fr; } }
+
+  label{ display:block; font-size:13px; color:var(--muted); margin-bottom:6px; font-weight:500; }
+  label .req{ color:var(--danger); }
+  input, select, textarea{
+    width:100%; background:var(--panel2); border:1.5px solid var(--border); color:var(--text);
+    padding:11px 13px; border-radius:9px; font-size:14.5px; outline:none; transition:.15s;
+  }
+  input::placeholder, textarea::placeholder{ color:#aab4c4; }
+  input:focus, select:focus, textarea:focus{ border-color:var(--accent); background:#fff; box-shadow:0 0 0 3px rgba(59,111,240,.12); }
+  input:disabled{ background:#f1f5f9; color:var(--muted); cursor:not-allowed; }
+  textarea{ resize:vertical; min-height:90px; }
+  select{ appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748b' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 13px center; padding-right:36px; }
+
+  .field{ margin-bottom:4px; }
+
+  .actions-row{ display:flex; gap:10px; margin-top:26px; flex-wrap:wrap; align-items:center; }
+  .btn{ padding:11px 20px; border-radius:9px; font-size:14px; font-weight:600; cursor:pointer; border:1.5px solid transparent; transition:.15s; }
+  .btn-primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn-primary:hover{ background:var(--accent-dark); border-color:var(--accent-dark); }
+  .btn-secondary{ background:var(--panel); border-color:var(--border); color:var(--text); }
+  .btn-secondary:hover{ border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .btn-danger{ background:var(--danger-soft); border-color:#fca5a5; color:var(--danger); display:inline-flex; align-items:center; gap:8px; }
+  .btn-danger:hover{ background:#fee2e2; border-color:var(--danger); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+  .toolbar{ display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap; align-items:center; }
+  .toolbar input{ max-width:300px; }
+  .count-pill{ background:var(--accent-soft); border:1px solid #c7d7fc; padding:7px 13px; border-radius:20px; font-size:13px; color:var(--accent); font-weight:600; }
+
+  table{ width:100%; border-collapse:collapse; font-size:14px; }
+  th{ text-align:left; color:var(--muted); font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; padding:10px 14px; border-bottom:2px solid var(--border); background:var(--panel2); }
+  th:first-child{ border-radius:8px 0 0 0; }
+  th:last-child{ border-radius:0 8px 0 0; }
+  td{ padding:13px 14px; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text); }
+  tr:last-child td{ border-bottom:none; }
+  tr:hover td{ background:#f8faff; }
+  .empty-state{ text-align:center; padding:56px 20px; color:var(--muted); font-size:14px; }
+  .empty-state svg{ margin-bottom:12px; opacity:.35; }
+
+  .badge{ display:inline-block; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:700; }
+  .badge-ativo{ background:var(--ok-soft); color:var(--ok); border:1px solid #bbf7d0; }
+  .badge-inativo{ background:var(--danger-soft); color:var(--danger); border:1px solid #fecaca; }
+  .badge-pausa{ background:var(--warn-soft); color:var(--warn); border:1px solid #fde68a; }
+  .badge-espera{ background:#f0f0ff; color:#6366f1; border:1px solid #c7d2fe; }
+
+  .row-actions{ display:flex; gap:6px; }
+  .icon-btn{ width:32px; height:32px; border-radius:7px; border:1.5px solid var(--border); background:var(--panel); color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.15s; }
+  .icon-btn:hover{ border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .icon-btn.danger:hover{ border-color:var(--danger); color:var(--danger); background:var(--danger-soft); }
+
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:24px; box-shadow:var(--shadow); }
+  .toast{ position:fixed; bottom:24px; right:24px; background:var(--text); color:#fff; padding:13px 20px; border-radius:10px; font-size:14px; font-weight:500; box-shadow:var(--shadow-md); z-index:999; opacity:0; transform:translateY(8px); transition:.25s; pointer-events:none; }
+  .toast.show{ opacity:1; transform:translateY(0); }
+
+  .loading{ color:var(--muted); font-size:13px; padding:20px 0; }
+  .modal-overlay{ position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:998; padding:20px; backdrop-filter:blur(2px); }
+  .modal{ background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:26px; max-width:420px; width:100%; box-shadow:var(--shadow-md); }
+  .modal h3{ margin:0 0 8px; font-size:16px; font-weight:700; color:var(--text); }
+  .modal p{ color:var(--muted); font-size:13.5px; margin:0 0 20px; line-height:1.55; }
+  .modal .actions-row{ margin-top:0; justify-content:flex-end; }
+
+  code{ background:var(--accent-soft); color:var(--accent); padding:2px 7px; border-radius:5px; font-size:12px; font-family:ui-monospace,monospace; }
+
+  /* ── Auth / Login ───────────────────────────────────────────────── */
+  .auth-bg{ min-height:100vh; background:linear-gradient(135deg,#1e3a8a 0%,#3b6ff0 55%,#6366f1 100%); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .auth-card{ background:#fff; border-radius:20px; padding:40px 36px; width:100%; max-width:400px; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+  .auth-logo{ width:60px; height:60px; border-radius:16px; background:var(--accent); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; box-shadow:0 8px 20px rgba(59,111,240,.4); }
+  .auth-card h1{ text-align:center; font-size:22px; font-weight:800; margin:0 0 5px; color:var(--text); }
+  .auth-card .auth-sub{ text-align:center; font-size:13.5px; color:var(--muted); margin:0 0 28px; }
+  .auth-field{ margin-bottom:16px; }
+  .auth-field label{ display:block; font-size:13px; font-weight:600; color:var(--text); margin-bottom:7px; }
+  .auth-field input{ width:100%; background:#f7f9fc; border:1.5px solid var(--border); color:var(--text); padding:12px 14px; border-radius:10px; font-size:15px; outline:none; transition:.15s; }
+  .auth-field input:focus{ border-color:var(--accent); background:#fff; box-shadow:0 0 0 3px rgba(59,111,240,.12); }
+  .auth-btn{ width:100%; background:var(--accent); color:#fff; border:none; border-radius:10px; padding:13px; font-size:15px; font-weight:700; cursor:pointer; margin-top:6px; transition:.15s; }
+  .auth-btn:hover{ background:var(--accent-dark); }
+  .auth-btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .auth-error{ background:#fef2f2; border:1px solid #fecaca; color:var(--danger); border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:14px; }
+  .auth-hint{ text-align:center; font-size:12px; color:var(--muted); margin-top:14px; line-height:1.5; }
+  .auth-pwd-wrap{ position:relative; }
+  .auth-pwd-wrap input{ padding-right:44px; }
+  .auth-eye{ position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--muted); padding:0; display:flex; }
+  /* user badge in header */
+  .user-chip{ display:flex; align-items:center; gap:8px; background:var(--panel2); border:1px solid var(--border); border-radius:20px; padding:6px 14px 6px 8px; font-size:13px; font-weight:600; }
+  .user-chip-av{ width:26px; height:26px; border-radius:99px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; }
+  .role-badge{ font-size:11px; padding:2px 7px; border-radius:10px; font-weight:700; }
+  .role-badge.admin{ background:#fef3c7; color:#92400e; }
+  .role-badge.user{ background:var(--accent-soft); color:var(--accent); }
+
+  .dash-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+  @media(max-width:900px){ .dash-grid{ grid-template-columns:repeat(2,1fr); } }
+  .dash-card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow); display:flex; align-items:center; gap:16px; }
+  .dash-card-icon{ width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:22px; }
+  .dash-card-num{ font-size:30px; font-weight:800; line-height:1; }
+  .dash-card-label{ font-size:12.5px; color:var(--muted); margin-top:3px; font-weight:500; }
+  .dash-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+  @media(max-width:720px){ .dash-row{ grid-template-columns:1fr; } }
+
+  .profile-overlay{ position:fixed; inset:0; background:rgba(15,23,42,.5); z-index:990; backdrop-filter:blur(3px); }
+  .profile-drawer{ position:fixed; top:0; right:0; bottom:0; width:min(780px,100%); background:var(--bg); z-index:991; display:flex; flex-direction:column; box-shadow:-8px 0 32px rgba(0,0,0,.15); overflow:hidden; }
+  .profile-topbar{ display:flex; align-items:center; gap:14px; padding:18px 24px; background:var(--panel); border-bottom:1px solid var(--border); flex-shrink:0; }
+  .profile-avatar{ width:52px; height:52px; border-radius:14px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:800; flex-shrink:0; }
+  .profile-topbar h2{ margin:0; font-size:18px; font-weight:800; }
+  .profile-topbar p{ margin:3px 0 0; font-size:13px; color:var(--muted); }
+  .profile-body{ overflow-y:auto; flex:1; padding:24px; display:flex; flex-direction:column; gap:16px; }
+  .profile-card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow); }
+  .profile-card h3{ margin:0 0 16px; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .profile-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .profile-grid-2{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+  @media(max-width:600px){ .profile-grid,.profile-grid-2{ grid-template-columns:1fr 1fr; } }
+  .profile-field label{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:4px; display:block; }
+  .profile-field span{ font-size:14.5px; color:var(--text); font-weight:500; }
+  .profile-field span.empty{ color:#b0bac9; font-style:italic; }
+  .profile-actions{ display:flex; gap:10px; padding:16px 24px; background:var(--panel); border-top:1px solid var(--border); flex-shrink:0; }
+  .therapy-row{ display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+  .therapy-row:last-child{ border-bottom:none; }
+  .pts-reav{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:4px; }
+  .pts-reav-item{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+  .pts-reav-item .r-label{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:4px; }
+  .pts-reav-item .r-date{ font-size:14px; font-weight:700; color:var(--text); }
+  .pts-reav-item.vencida .r-date{ color:var(--danger); }
+  .pts-reav-item.ok .r-date{ color:var(--ok); }
+  .name-link{ background:none; border:none; padding:0; cursor:pointer; color:var(--accent); font-weight:700; font-size:14px; text-align:left; text-decoration:underline; text-underline-offset:3px; }
+  .name-link:hover{ color:var(--accent-dark); }
+
+  .notif-overlay{ position:fixed; inset:0; z-index:997; }
+  .notif-panel{ position:fixed; top:78px; right:24px; width:400px; max-height:78vh; background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow-md); z-index:998; display:flex; flex-direction:column; overflow:hidden; }
+  @media(max-width:480px){ .notif-panel{ right:8px; left:8px; width:auto; } }
+  .notif-panel-header{ display:flex; align-items:center; justify-content:space-between; padding:18px 20px 14px; border-bottom:1px solid var(--border); }
+  .notif-panel-header h2{ margin:0; font-size:16px; font-weight:700; }
+  .notif-panel-body{ overflow-y:auto; flex:1; padding:14px 16px; }
+  .notif-group-title{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:14px 0 8px; }
+  .notif-group-title:first-child{ margin-top:0; }
+  .notif-item{ display:flex; gap:12px; align-items:flex-start; background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px; border-left-width:4px; }
+  .notif-item.red{ border-left-color:var(--danger); }
+  .notif-item.orange{ border-left-color:#f97316; }
+  .notif-item.yellow{ border-left-color:var(--warn); }
+  .notif-dot{ width:10px; height:10px; border-radius:99px; flex-shrink:0; margin-top:4px; }
+  .notif-dot.red{ background:var(--danger); }
+  .notif-dot.orange{ background:#f97316; }
+  .notif-dot.yellow{ background:var(--warn); }
+  .notif-title{ font-size:14px; font-weight:700; color:var(--text); margin-bottom:3px; }
+  .notif-sub{ font-size:12.5px; color:var(--muted); line-height:1.45; }
+  .notif-empty{ text-align:center; padding:40px 20px; color:var(--muted); }
+  .notif-empty svg{ opacity:.3; margin-bottom:12px; }
+
+  .notif-bell{ position:relative; width:42px; height:42px; border-radius:11px; border:1.5px solid var(--border); background:var(--panel); color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:.15s; }
+  .notif-bell:hover{ border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .notif-bell.has-alerts{ border-color:#fde68a; color:var(--warn); background:var(--warn-soft); }
+  .badge-dot{ position:absolute; top:-6px; right:-6px; background:var(--danger); color:#fff; font-size:11px; font-weight:800; min-width:20px; height:20px; border-radius:99px; display:flex; align-items:center; justify-content:center; padding:0 4px; border:2px solid var(--bg); }
+  .notif-panel{ position:fixed; top:0; right:0; bottom:0; width:400px; max-width:95vw; background:var(--panel); border-left:1px solid var(--border); box-shadow:-8px 0 32px rgba(0,0,0,.12); z-index:997; display:flex; flex-direction:column; }
+  .notif-header{ display:flex; align-items:center; justify-content:space-between; padding:20px 22px 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .notif-header h2{ margin:0; font-size:16px; font-weight:700; }
+  .notif-close{ width:32px; height:32px; border-radius:8px; border:1.5px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .notif-close:hover{ border-color:var(--danger); color:var(--danger); }
+  .notif-list{ overflow-y:auto; flex:1; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .notif-item{ border-radius:12px; padding:14px 16px; border:1.5px solid transparent; cursor:default; }
+  .notif-item.urgente{ background:#fff7ed; border-color:#fed7aa; }
+  .notif-item.atencao{ background:#fffbeb; border-color:#fde68a; }
+  .notif-item.info{ background:#f0f9ff; border-color:#bae6fd; }
+  .notif-item-top{ display:flex; gap:10px; align-items:flex-start; margin-bottom:6px; }
+  .notif-icon{ font-size:18px; flex-shrink:0; margin-top:1px; }
+  .notif-title{ font-size:14px; font-weight:700; color:var(--text); }
+  .notif-desc{ font-size:13px; color:var(--muted); line-height:1.5; margin-top:2px; }
+  .notif-action{ margin-top:10px; }
+  .notif-empty{ text-align:center; padding:60px 20px; color:var(--muted); }
+  .notif-overlay{ position:fixed; inset:0; background:rgba(15,23,42,.25); z-index:996; }
+
+  .notif-bell{ position:relative; width:42px; height:42px; border-radius:10px; border:1.5px solid var(--border); background:var(--panel); color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:.15s; box-shadow:var(--shadow); }
+  .notif-bell:hover{ border-color:var(--accent); color:var(--accent); }
+  .notif-bell .badge-dot{ position:absolute; top:-5px; right:-5px; background:var(--danger); color:#fff; font-size:11px; font-weight:800; border-radius:99px; min-width:18px; height:18px; display:flex; align-items:center; justify-content:center; padding:0 4px; border:2px solid var(--bg); }
+  .notif-panel{ position:fixed; top:0; right:0; bottom:0; width:420px; background:var(--panel); border-left:1px solid var(--border); box-shadow:-4px 0 24px rgba(0,0,0,.1); z-index:997; display:flex; flex-direction:column; }
+  .notif-panel-header{ padding:20px 20px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .notif-panel-header h2{ margin:0; font-size:16px; font-weight:700; }
+  .notif-panel-body{ flex:1; overflow-y:auto; padding:16px; }
+  .notif-overlay{ position:fixed; inset:0; background:rgba(15,23,42,.25); z-index:996; backdrop-filter:blur(1px); }
+  .notif-group-title{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin:16px 0 10px; }
+  .notif-group-title:first-child{ margin-top:0; }
+  .notif-item{ background:var(--panel2); border:1.5px solid var(--border); border-radius:12px; padding:14px 15px; margin-bottom:10px; display:flex; gap:12px; align-items:flex-start; }
+  .notif-item.red{ border-color:#fca5a5; background:#fff8f8; }
+  .notif-item.orange{ border-color:#fed7aa; background:#fffaf5; }
+  .notif-item.yellow{ border-color:#fde68a; background:#fffdf0; }
+  .notif-item.blue{ border-color:#c7d7fc; background:#f5f8ff; }
+  .notif-dot{ width:9px; height:9px; border-radius:99px; flex-shrink:0; margin-top:4px; }
+  .notif-dot.red{ background:var(--danger); }
+  .notif-dot.orange{ background:#f97316; }
+  .notif-dot.yellow{ background:var(--warn); }
+  .notif-dot.blue{ background:var(--accent); }
+  .notif-title{ font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:3px; }
+  .notif-sub{ font-size:12.5px; color:var(--muted); line-height:1.5; }
+  .notif-empty{ text-align:center; padding:50px 20px; color:var(--muted); }
+  .notif-empty svg{ margin-bottom:12px; opacity:.3; }
+  .stat-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
+  @media(max-width:820px){ .stat-grid{ grid-template-columns:repeat(2,1fr); } }
+  .stat-card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow); }
+  .stat-card .stat-num{ font-size:36px; font-weight:800; line-height:1; margin-bottom:6px; }
+  .stat-card .stat-label{ font-size:13px; color:var(--muted); font-weight:500; }
+  .stat-card.blue .stat-num{ color:#6366f1; }
+  .stat-card.green .stat-num{ color:var(--ok); }
+  .stat-card.warn .stat-num{ color:var(--warn); }
+  .stat-card.red .stat-num{ color:var(--danger); }
+</style>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useMemo } = React;
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function Toast({ message }) {
+  return <div className={"toast" + (message ? " show" : "")}>{message}</div>;
+}
+
+function IconPlus(){ return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>; }
+function IconEdit(){ return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>; }
+function IconTrash(){ return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>; }
+function IconSearch(){ return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>; }
+function IconUsers(){ return <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>; }
+
+const CID_OPTIONS = ["F84.0 - Autismo infantil","F84.1 - Autismo atípico","F84.5 - Síndrome de Asperger","F80 - Transtornos do desenvolvimento da fala","F90 - TDAH","F70 - Deficiência intelectual leve","Outro"];
+const NIVEL_TEA = ["Nível 1 - Suporte leve","Nível 2 - Suporte moderado","Nível 3 - Suporte substancial","Não se aplica"];
+const PARENTESCO = ["Mãe","Pai","Avó/Avô","Tio/Tia","Tutor legal","Outro"];
+const ESPECIALIDADES = ["Psicólogo(a)","Terapeuta Ocupacional","Fonoaudiólogo(a)","Psicopedagogo(a)","Fisioterapeuta","Musicoterapeuta","Educador físico","Neuropediatra","Outro"];
+const DEFAULT_TERAPIAS = ["ABA","Fonoaudiologia","Terapia Ocupacional","Psicoterapia","Psicopedagogia","Fisioterapia","Musicoterapia","Outro"];
+
+function useTiposTerapia(){
+  const KEY = "tiposTerapia:v1";
+  const [tipos, setTipos] = useState(DEFAULT_TERAPIAS);
+
+  const load = useCallback(async () => {
+    try{
+      const r = await window.storage.get(KEY, true);
+      if(r) setTipos(JSON.parse(r.value));
+    }catch(e){}
+  }, []);
+
+  useEffect(()=>{ load(); }, [load]);
+
+  const saveAll = useCallback(async (list) => {
+    await window.storage.set(KEY, JSON.stringify(list), true);
+    setTipos(list);
+  }, []);
+
+  const add = useCallback(async (nome) => {
+    const next = [...tipos, nome];
+    await saveAll(next);
+  }, [tipos, saveAll]);
+
+  const remove = useCallback(async (nome) => {
+    await saveAll(tipos.filter(t => t !== nome));
+  }, [tipos, saveAll]);
+
+  const move = useCallback(async (nome, dir) => {
+    const list = [...tipos];
+    const i = list.indexOf(nome);
+    const j = i + dir;
+    if(j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    await saveAll(list);
+  }, [tipos, saveAll]);
+
+  return { tipos, add, remove, move };
+}
+
+const blankPatient = () => ({
+  id: null, nome:"", cpf:"", nascimento:"", sexo:"", mae:"",
+  cid:"", nivelTea:"", comorbidades:"",
+  responsavel:"", parentesco:"", telefone:"", endereco:"",
+  unidade:"", dataEntrada:"", status:"Ativo", obs:"",
+  terapiasNecessarias: []
+});
+const blankProfessional = () => ({ id:null, nome:"", especialidade:"", registro:"", telefone:"", email:"", status:"Ativo" });
+const blankTherapy = () => ({ id:null, pacienteId:"", profissionalId:"", tipo:"", data:"", hora:"", duracao:"50", status:"Agendada", obs:"", posTriagem:false });
+
+function useCollection(prefix){
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try{
+      const listRes = await window.storage.list(prefix, true);
+      const keys = (listRes && listRes.keys) ? listRes.keys : [];
+      const results = await Promise.all(keys.map(async k => {
+        try{
+          const r = await window.storage.get(k, true);
+          return r ? JSON.parse(r.value) : null;
+        }catch(e){ return null; }
+      }));
+      setItems(results.filter(Boolean).sort((a,b)=> (b.createdAt||0)-(a.createdAt||0)));
+    }catch(e){
+      setItems([]);
+    }
+    setLoading(false);
+  }, [prefix]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const save = useCallback(async (record) => {
+    const rec = { ...record };
+    if(!rec.id) rec.id = uid();
+    if(!rec.createdAt) rec.createdAt = Date.now();
+    await window.storage.set(prefix + rec.id, JSON.stringify(rec), true);
+    await load();
+    return rec;
+  }, [prefix, load]);
+
+  const remove = useCallback(async (id) => {
+    await window.storage.delete(prefix + id, true);
+    await load();
+  }, [prefix, load]);
+
+  return { items, loading, save, remove, reload: load };
+}
+
+function Field({ label, required, children }){
+  return <div className="field">
+    <label>{label} {required && <span className="req">*</span>}</label>
+    {children}
+  </div>;
+}
+
+function ConfirmModal({ title, text, onConfirm, onCancel }){
+  return <div className="modal-overlay" onClick={onCancel}>
+    <div className="modal" onClick={e=>e.stopPropagation()}>
+      <h3>{title}</h3>
+      <p>{text}</p>
+      <div className="actions-row">
+        <button className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
+        <button className="btn btn-danger" style={{background:'var(--danger)',color:'#fff'}} onClick={onConfirm}>Excluir</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDelete, tiposTerapia }){
+  const [form, setForm] = useState(editTarget || blankPatient());
+  useEffect(()=>{ setForm(editTarget || blankPatient()); }, [editTarget]);
+  const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
+
+  const necessarias = form.terapiasNecessarias || [];
+  const disponveis = (tiposTerapia||[]).filter(t => !necessarias.some(n => n.tipo === t));
+  const [novaTerapia, setNovaTerapia] = useState("");
+
+  const addTerapia = () => {
+    if(!novaTerapia) return;
+    setForm(f => ({ ...f, terapiasNecessarias: [...(f.terapiasNecessarias||[]), { tipo: novaTerapia, status: "Lista de espera" }] }));
+    setNovaTerapia("");
+  };
+  const removeTerapia = (tipo) => {
+    setForm(f => ({ ...f, terapiasNecessarias: (f.terapiasNecessarias||[]).filter(t => t.tipo !== tipo) }));
+  };
+  const setTerapiaStatus = (tipo, status) => {
+    setForm(f => ({ ...f, terapiasNecessarias: (f.terapiasNecessarias||[]).map(t => t.tipo===tipo ? {...t, status} : t) }));
+  };
+  const setTerapiaPosTriagem = (tipo, val) => {
+    setForm(f => ({ ...f, terapiasNecessarias: (f.terapiasNecessarias||[]).map(t => t.tipo===tipo ? {...t, posTriagem: val} : t) }));
+  };
+  const moveTerapia = (idx, dir) => {
+    setForm(f => {
+      const list = [...(f.terapiasNecessarias||[])];
+      const j = idx + dir;
+      if(j < 0 || j >= list.length) return f;
+      [list[idx], list[j]] = [list[j], list[idx]];
+      return { ...f, terapiasNecessarias: list };
+    });
+  };
+
+  const handleSubmit = async () => {
+    if(!form.nome || !form.cpf || !form.nascimento || !form.mae || !form.responsavel || !form.telefone){
+      notify("Preencha os campos obrigatórios (*)");
+      return;
+    }
+    await save(form);
+    notify(editTarget ? "Cadastro atualizado" : "Paciente cadastrado");
+    setForm(blankPatient());
+    if(onDone) onDone();
+  };
+
+  return <div className="card">
+    <div className="section-title">Dados do paciente</div>
+    <div className="grid grid-2">
+      <Field label="Nome completo" required><input placeholder="Nome completo da criança" value={form.nome} onChange={set('nome')} /></Field>
+      <Field label="CPF / CNS" required><input placeholder="000.000.000-00" value={form.cpf} onChange={set('cpf')} /></Field>
+    </div>
+    <div className="grid grid-3" style={{marginTop:16}}>
+      <Field label="Data de nascimento" required><input type="date" value={form.nascimento} onChange={set('nascimento')} /></Field>
+      <Field label="Sexo">
+        <select value={form.sexo} onChange={set('sexo')}>
+          <option value="">Selecione</option><option>Feminino</option><option>Masculino</option><option>Outro</option>
+        </select>
+      </Field>
+      <Field label="Nome da mãe" required><input placeholder="Nome da mãe" value={form.mae} onChange={set('mae')} /></Field>
+    </div>
+
+    <div className="section-title">Diagnóstico clínico</div>
+    <div className="grid grid-3">
+      <Field label="Diagnóstico CID">
+        <select value={form.cid} onChange={set('cid')}>
+          <option value="">Selecione</option>
+          {CID_OPTIONS.map(c => <option key={c}>{c}</option>)}
+        </select>
+      </Field>
+      <Field label="Nível de suporte TEA">
+        <select value={form.nivelTea} onChange={set('nivelTea')}>
+          <option value="">Selecione</option>
+          {NIVEL_TEA.map(c => <option key={c}>{c}</option>)}
+        </select>
+      </Field>
+      <Field label="Comorbidades"><input placeholder="Ex: TDAH, ansiedade, epilepsia" value={form.comorbidades} onChange={set('comorbidades')} /></Field>
+    </div>
+
+    <div className="section-title">Responsável</div>
+    <div className="grid grid-2">
+      <Field label="Nome do responsável" required><input placeholder="Nome completo" value={form.responsavel} onChange={set('responsavel')} /></Field>
+      <Field label="Parentesco">
+        <select value={form.parentesco} onChange={set('parentesco')}>
+          <option value="">Selecione</option>
+          {PARENTESCO.map(c => <option key={c}>{c}</option>)}
+        </select>
+      </Field>
+    </div>
+    <div className="grid grid-2" style={{marginTop:16}}>
+      <Field label="Telefone" required><input placeholder="(00) 00000-0000" value={form.telefone} onChange={set('telefone')} /></Field>
+      <Field label="Endereço"><input placeholder="Rua, número, bairro, cidade" value={form.endereco} onChange={set('endereco')} /></Field>
+    </div>
+
+    <div className="section-title">Terapias necessárias <span style={{textTransform:'none', fontWeight:500, letterSpacing:0}}>· ordenadas por prioridade</span></div>
+    <div className="card" style={{background:'var(--panel2)', boxShadow:'none', padding:16, marginBottom:4}}>
+      {necessarias.length === 0
+        ? <p style={{margin:'0 0 14px', fontSize:13, color:'var(--muted)'}}>Nenhuma terapia adicionada ainda. Use o campo abaixo para adicionar a primeira (a mais urgente).</p>
+        : <div style={{display:'flex', flexDirection:'column', gap:8, marginBottom:14}}>
+            {necessarias.map((t, idx) => (
+              <div key={t.tipo} style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', padding:'9px 11px', borderRadius:9, background:'var(--panel)', border:'1px solid var(--border)'}}>
+                <span style={{
+                  width:24, height:24, borderRadius:99, background:'var(--accent-soft)', color:'var(--accent)',
+                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:800, flexShrink:0
+                }}>{idx+1}</span>
+                <span style={{fontWeight:600, fontSize:14, flex:1, minWidth:140}}>{t.tipo}</span>
+                <select style={{maxWidth:190}} value={t.status} onChange={e=>setTerapiaStatus(t.tipo, e.target.value)}>
+                  <option value="Ativo">Ativo</option>
+                  <option value="Lista de espera">Lista de espera</option>
+                  <option value="Finalizado">Finalizado</option>
+                </select>
+                {t.status === "Ativo" && (
+                  <label style={{display:'flex', alignItems:'center', gap:6, margin:0, cursor:'pointer', fontSize:12.5, fontWeight:600, color:'var(--muted)', whiteSpace:'nowrap'}}>
+                    <input type="checkbox" style={{width:15, height:15, accentColor:'var(--accent)'}} checked={!!t.posTriagem} onChange={e=>setTerapiaPosTriagem(t.tipo, e.target.checked)} />
+                    Pós triagem
+                  </label>
+                )}
+                <div style={{display:'flex', gap:4}}>
+                  <button type="button" className="icon-btn" title="Aumentar prioridade" onClick={()=>moveTerapia(idx,-1)} disabled={idx===0}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+                  </button>
+                  <button type="button" className="icon-btn" title="Diminuir prioridade" onClick={()=>moveTerapia(idx,1)} disabled={idx===necessarias.length-1}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
+                  <button type="button" className="icon-btn danger" title="Remover" onClick={()=>removeTerapia(t.tipo)}><IconTrash/></button>
+                </div>
+              </div>
+            ))}
+          </div>
+      }
+      {disponveis.length > 0 && (
+        <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+          <select style={{maxWidth:240, flex:1, minWidth:180}} value={novaTerapia} onChange={e=>setNovaTerapia(e.target.value)}>
+            <option value="">Adicionar terapia...</option>
+            {disponveis.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <button type="button" className="btn btn-secondary" style={{padding:'9px 16px'}} onClick={addTerapia} disabled={!novaTerapia}><IconPlus/> Adicionar</button>
+        </div>
+      )}
+      {(!tiposTerapia || tiposTerapia.length===0) && <p style={{margin:0, fontSize:13, color:'var(--muted)'}}>Nenhum tipo de terapia cadastrado. Adicione tipos na aba "Terapias".</p>}
+    </div>
+
+    <div className="section-title">Vínculo com a clínica</div>
+    <div className="grid grid-3">
+      <Field label="Unidade de saúde"><input placeholder="Nome da unidade" value={form.unidade} onChange={set('unidade')} /></Field>
+      <Field label="Data de entrada na clínica"><input type="date" value={form.dataEntrada} onChange={set('dataEntrada')} /></Field>
+      <Field label="Status">
+        <select value={form.status} onChange={set('status')}>
+          <option>Ativo</option><option>Em pausa</option><option>Lista de espera</option><option>Inativo</option>
+        </select>
+      </Field>
+    </div>
+    <div className="grid" style={{marginTop:16}}>
+      <Field label="Observações gerais"><textarea placeholder="Informações relevantes, histórico, particularidades do paciente..." value={form.obs} onChange={set('obs')} /></Field>
+    </div>
+
+    <div className="actions-row">
+      <button className="btn btn-primary" onClick={handleSubmit}>{editTarget ? "Salvar alterações" : "Cadastrar paciente"}</button>
+      {editTarget && <button className="btn btn-secondary" onClick={onDone}>Cancelar edição</button>}
+      {editTarget && <button className="btn btn-danger" onClick={()=>onRequestDelete(editTarget)}><IconTrash/> Excluir cadastro</button>}
+    </div>
+  </div>;
+}
+
+function StatusBadge({ status }){
+  const cls = status === "Ativo" ? "badge-ativo"
+    : status === "Em pausa" ? "badge-pausa"
+    : status === "Lista de espera" ? "badge-espera"
+    : "badge-inativo";
+  return <span className={"badge " + cls}>{status}</span>;
+}
+
+function TherapyMiniBadges({ list }){
+  if(!list || list.length === 0) return <span style={{color:'var(--muted)', fontSize:13}}>—</span>;
+  let ordemEspera = 0;
+  const styleFor = (status) => {
+    if(status === "Ativo") return { bg:'var(--ok-soft)', color:'var(--ok)', border:'#bbf7d0' };
+    if(status === "Finalizado") return { bg:'#f1f5f9', color:'#64748b', border:'#cbd5e1' };
+    return { bg:'var(--warn-soft)', color:'var(--warn)', border:'#fde68a' }; // Lista de espera
+  };
+  return <div style={{display:'flex', flexWrap:'wrap', gap:5}}>
+    {list.map(t => {
+      const isEspera = t.status === "Lista de espera";
+      if(isEspera) ordemEspera++;
+      const s = styleFor(t.status);
+      return (
+        <span key={t.tipo} title={t.tipo + " · " + t.status + (isEspera ? " · prioridade "+ordemEspera : "") + (t.status==="Ativo" && t.posTriagem ? " · pós triagem" : "")} style={{
+          display:'inline-flex', alignItems:'center', gap:5,
+          fontSize:11.5, fontWeight:700, padding:'3px 9px', borderRadius:20, whiteSpace:'nowrap',
+          background: s.bg, color: s.color, border: '1px solid ' + s.border
+        }}>
+          {isEspera
+            ? <span style={{width:14, height:14, borderRadius:99, background:'var(--warn)', color:'#fff', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>{ordemEspera}</span>
+            : <span style={{width:6, height:6, borderRadius:99, background: t.status==="Ativo" ? 'var(--ok)' : '#64748b', flexShrink:0}}/>
+          }
+          {t.tipo}
+          {t.status==="Ativo" && t.posTriagem && <span style={{
+            background:'rgba(255,255,255,0.6)', color:s.color, fontSize:9.5, fontWeight:800,
+            padding:'1px 5px', borderRadius:8, letterSpacing:'.02em'
+          }}>PT</span>}
+        </span>
+      );
+    })}
+  </div>;
+}
+
+function PatientProfile({ patient, therapies, pts, professionals, onClose, onEdit }){
+  const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : null;
+  const val = (v) => v || null;
+
+  const initials = (nome) => nome ? nome.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : "?";
+
+  const idade = (nasc) => {
+    if(!nasc) return null;
+    const diff = Date.now() - new Date(nasc+"T00:00").getTime();
+    return Math.floor(diff / (365.25*24*3600*1000)) + " anos";
+  };
+
+  const profName = (id) => { const p = professionals.find(x=>x.id===id); return p ? p.nome : "—"; };
+
+  const myTherapies = therapies.filter(t => t.pacienteId === patient.id)
+    .sort((a,b) => (b.data||"").localeCompare(a.data||""));
+  const myPts = pts.find(p => p.pacienteId === patient.id);
+
+  const diasAte = (d) => d ? Math.floor((new Date(d+"T00:00").getTime() - Date.now()) / (86400000)) : null;
+
+  const PField = ({label, value}) => (
+    <div className="profile-field">
+      <label>{label}</label>
+      <span className={value ? "" : "empty"}>{value || "Não informado"}</span>
+    </div>
+  );
+
+  const ReavCard = ({label, data}) => {
+    const df = diasAte(data);
+    const cls = !data ? "" : df < 0 ? "vencida" : "ok";
+    return (
+      <div className={"pts-reav-item " + cls}>
+        <div className="r-label">{label}</div>
+        <div className="r-date">{fmt(data) || "—"}</div>
+        {data && df !== null && <div style={{fontSize:11, marginTop:3, color:'var(--muted)'}}>
+          {df < 0 ? `Venceu há ${Math.abs(df)} dias` : df === 0 ? "Hoje" : `Em ${df} dias`}
+        </div>}
+      </div>
+    );
+  };
+
+  const statusSessionColor = {"Realizada":"var(--ok)", "Cancelada":"var(--danger)", "Faltou":"#f97316", "Agendada":"var(--accent)"};
+
+  return <>
+    <div className="profile-overlay" onClick={onClose}/>
+    <div className="profile-drawer">
+      {/* Top bar */}
+      <div className="profile-topbar">
+        <div className="profile-avatar">{initials(patient.nome)}</div>
+        <div style={{flex:1}}>
+          <h2>{patient.nome}</h2>
+          <p>
+            {idade(patient.nascimento) && <span>{idade(patient.nascimento)}</span>}
+            {patient.cid && <span> · {patient.cid}</span>}
+            {patient.status && <span> · </span>}
+            {patient.status && <StatusBadge status={patient.status}/>}
+          </p>
+        </div>
+        <button className="icon-btn" onClick={onClose}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="profile-body">
+
+        {/* Dados pessoais */}
+        <div className="profile-card">
+          <h3>👤 Dados do paciente</h3>
+          <div className="profile-grid">
+            <PField label="CPF / CNS" value={val(patient.cpf)}/>
+            <PField label="Data de nascimento" value={fmt(patient.nascimento)}/>
+            <PField label="Sexo" value={val(patient.sexo)}/>
+            <PField label="Nome da mãe" value={val(patient.mae)}/>
+            <PField label="Unidade de saúde" value={val(patient.unidade)}/>
+            <PField label="Data de entrada" value={fmt(patient.dataEntrada)}/>
+          </div>
+        </div>
+
+        {/* Diagnóstico */}
+        <div className="profile-card">
+          <h3>🩺 Diagnóstico clínico</h3>
+          <div className="profile-grid">
+            <PField label="Diagnóstico CID" value={val(patient.cid)}/>
+            <PField label="Nível de suporte TEA" value={val(patient.nivelTea)}/>
+            <PField label="Comorbidades" value={val(patient.comorbidades)}/>
+          </div>
+        </div>
+
+        {/* Responsável */}
+        <div className="profile-card">
+          <h3>👨‍👩‍👧 Responsável</h3>
+          <div className="profile-grid">
+            <PField label="Nome" value={val(patient.responsavel)}/>
+            <PField label="Parentesco" value={val(patient.parentesco)}/>
+            <PField label="Telefone" value={val(patient.telefone)}/>
+          </div>
+          {patient.endereco && <div style={{marginTop:12}}><PField label="Endereço" value={patient.endereco}/></div>}
+        </div>
+
+        {/* Plano Terapêutico Singular */}
+        <div className="profile-card">
+          <h3>📄 Plano Terapêutico Singular</h3>
+          {!myPts
+            ? <p style={{color:'var(--muted)', fontSize:13, margin:0}}>Nenhum PTS cadastrado para este paciente.</p>
+            : <>
+                <div className="pts-reav">
+                  <ReavCard label="1ª Reavaliação" data={myPts.renovacao1}/>
+                  <ReavCard label="2ª Reavaliação" data={myPts.renovacao2}/>
+                  <ReavCard label="3ª Reavaliação" data={myPts.renovacao3}/>
+                </div>
+                {(myPts.dataAlta || myPts.tipoAlta) && <div className="profile-grid-2" style={{marginTop:12}}>
+                  <PField label="Data de alta" value={fmt(myPts.dataAlta)}/>
+                  <PField label="Tipo de alta" value={val(myPts.tipoAlta)}/>
+                </div>}
+                {myPts.obs && <div style={{marginTop:12}}>
+                  <div className="profile-field">
+                    <label>Observações do PTS</label>
+                    <span style={{display:'block', fontSize:13.5, lineHeight:1.6}}>{myPts.obs}</span>
+                  </div>
+                </div>}
+              </>
+          }
+        </div>
+
+        {/* Terapias necessárias */}
+        {(patient.terapiasNecessarias||[]).length > 0 && <div className="profile-card">
+          <h3>🎯 Terapias necessárias <span style={{fontSize:11.5, fontWeight:500, color:'var(--muted)'}}>(ordem de prioridade)</span></h3>
+          <TherapyMiniBadges list={patient.terapiasNecessarias}/>
+        </div>}
+
+        {/* Terapias */}
+        <div className="profile-card">
+          <h3>🧩 Sessões de terapia ({myTherapies.length})</h3>
+          {myTherapies.length === 0
+            ? <p style={{color:'var(--muted)', fontSize:13, margin:0}}>Nenhuma sessão registrada.</p>
+            : <>
+                {/* Resumo por tipo */}
+                <div style={{display:'flex', flexWrap:'wrap', gap:8, marginBottom:16}}>
+                  {Object.entries(myTherapies.reduce((acc,t)=>{acc[t.tipo]=(acc[t.tipo]||0)+1; return acc;}, {}))
+                    .map(([tipo,n]) => (
+                      <span key={tipo} style={{background:'var(--accent-soft)', border:'1px solid #c7d7fc', borderRadius:20, padding:'4px 12px', fontSize:12.5, color:'var(--accent)', fontWeight:600}}>
+                        {tipo} · {n}
+                      </span>
+                    ))}
+                </div>
+                {/* Últimas 10 sessões */}
+                <div style={{fontSize:12, color:'var(--muted)', marginBottom:8, fontWeight:600}}>ÚLTIMAS SESSÕES</div>
+                {myTherapies.slice(0,10).map(t => (
+                  <div key={t.id} className="therapy-row">
+                    <div style={{width:8, height:8, borderRadius:99, background: t.status==="Realizada"?"var(--ok)": t.status==="Cancelada"||t.status==="Faltou"?"var(--danger)":"var(--accent)", flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <span style={{fontWeight:600}}>{t.tipo}</span>
+                      <span style={{color:'var(--muted)', marginLeft:8, fontSize:13}}>{profName(t.profissionalId)}</span>
+                    </div>
+                    <span style={{fontSize:13, color:'var(--muted)'}}>{fmt(t.data)}{t.hora ? " · "+t.hora : ""}</span>
+                    <StatusBadge status={t.status==="Realizada"?"Ativo":t.status==="Cancelada"||t.status==="Faltou"?"Inativo":"Em pausa"}/>
+                  </div>
+                ))}
+                {myTherapies.length > 10 && <div style={{fontSize:12, color:'var(--muted)', textAlign:'center', marginTop:10}}>+ {myTherapies.length - 10} sessões anteriores</div>}
+              </>
+          }
+        </div>
+
+        {/* Observações gerais */}
+        {patient.obs && <div className="profile-card">
+          <h3>📝 Observações gerais</h3>
+          <p style={{margin:0, fontSize:14, lineHeight:1.7, color:'var(--text)'}}>{patient.obs}</p>
+        </div>}
+
+      </div>
+
+      {/* Bottom actions */}
+      <div className="profile-actions">
+        <button className="btn btn-primary" onClick={()=>{ onEdit(patient); onClose(); }}>
+          <IconEdit/> Editar cadastro
+        </button>
+        <button className="btn btn-secondary" onClick={onClose}>Fechar</button>
+      </div>
+    </div>
+  </>;
+}
+
+function PatientsList({ patients, loading, onEdit, onDelete, filterConfigs, therapies, pts, professionals }){
+  const [q, setQ] = useState("");
+  const [fStatus, setFStatus] = useState("");
+  const [fCid, setFCid] = useState("");
+  const [fNivel, setFNivel] = useState("");
+  const [fUnidade, setFUnidade] = useState("");
+  const [fTerapiaTipo, setFTerapiaTipo] = useState("");
+  const [fTerapiaStatus, setFTerapiaStatus] = useState("");
+  const [viewingPatient, setViewingPatient] = useState(null);
+  const dynF = useDynamicFilters(filterConfigs||[], 'pacientes');
+
+  const uniq = (arr) => Array.from(new Set(arr.filter(Boolean)));
+  const cidOptions = useMemo(()=> uniq(patients.map(p=>p.cid)), [patients]);
+  const nivelOptions = useMemo(()=> uniq(patients.map(p=>p.nivelTea)), [patients]);
+  const unidadeOptions = useMemo(()=> uniq(patients.map(p=>p.unidade)), [patients]);
+  const terapiaTipoOptions = useMemo(()=> uniq(patients.flatMap(p=>(p.terapiasNecessarias||[]).map(t=>t.tipo))), [patients]);
+
+  const filtered = useMemo(() => {
+    const t = q.toLowerCase();
+    return patients.filter(p =>
+      ((p.nome||"").toLowerCase().includes(t) || (p.responsavel||"").toLowerCase().includes(t) || (p.cid||"").toLowerCase().includes(t)) &&
+      (!fStatus || p.status === fStatus) &&
+      (!fCid || p.cid === fCid) &&
+      (!fNivel || p.nivelTea === fNivel) &&
+      (!fUnidade || p.unidade === fUnidade) &&
+      (!fTerapiaTipo || (p.terapiasNecessarias||[]).some(x => x.tipo === fTerapiaTipo && (!fTerapiaStatus || x.status === fTerapiaStatus))) &&
+      dynF.mine.every(cfg => !dynF.vals[cfg.field] || p[cfg.field] === dynF.vals[cfg.field])
+    );
+  }, [patients, q, fStatus, fCid, fNivel, fUnidade, fTerapiaTipo, fTerapiaStatus, dynF.vals]);
+
+  const hasFilters = fStatus || fCid || fNivel || fUnidade || fTerapiaTipo;
+  const clearAll = () => { setFStatus(""); setFCid(""); setFNivel(""); setFUnidade(""); setFTerapiaTipo(""); setFTerapiaStatus(""); dynF.clear(); };
+
+  return <>
+  <div className="card">
+    <div className="toolbar">
+      <input placeholder="Buscar por nome, responsável ou diagnóstico..." value={q} onChange={e=>setQ(e.target.value)} />
+      <select style={{maxWidth:160}} value={fStatus} onChange={e=>setFStatus(e.target.value)}>
+        <option value="">Status (todos)</option>
+        <option>Ativo</option><option>Em pausa</option><option>Lista de espera</option><option>Inativo</option>
+      </select>
+      <select style={{maxWidth:200}} value={fCid} onChange={e=>setFCid(e.target.value)}>
+        <option value="">Diagnóstico CID (todos)</option>
+        {cidOptions.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+      <select style={{maxWidth:200}} value={fNivel} onChange={e=>setFNivel(e.target.value)}>
+        <option value="">Nível TEA (todos)</option>
+        {nivelOptions.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+      <select style={{maxWidth:180}} value={fUnidade} onChange={e=>setFUnidade(e.target.value)}>
+        <option value="">Unidade (todas)</option>
+        {unidadeOptions.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+      <select style={{maxWidth:180}} value={fTerapiaTipo} onChange={e=>setFTerapiaTipo(e.target.value)}>
+        <option value="">Terapia (todas)</option>
+        {terapiaTipoOptions.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+      {fTerapiaTipo && <select style={{maxWidth:170}} value={fTerapiaStatus} onChange={e=>setFTerapiaStatus(e.target.value)}>
+        <option value="">Todos os status</option>
+        <option value="Ativo">Só Ativo</option>
+        <option value="Lista de espera">Só Lista de espera</option>
+        <option value="Finalizado">Só Finalizado</option>
+      </select>}
+      <DynamicFilters mine={dynF.mine} vals={dynF.vals} setVal={dynF.setVal} data={patients} clear={dynF.clear} hasAny={dynF.hasAny} />
+      {(hasFilters || dynF.hasAny) && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={clearAll}>Limpar filtros</button>}
+      <span className="count-pill">{filtered.length} paciente{filtered.length!==1?"s":""}</span>
+    </div>
+    {loading ? <div className="loading">Carregando...</div> :
+    filtered.length === 0 ? (
+      <div className="empty-state">
+        <IconUsers/>
+        <div>Nenhum paciente encontrado. Use "Novo cadastro" para começar.</div>
+      </div>
+    ) : (
+      <table>
+        <thead><tr><th>Nome</th><th>Nascimento</th><th>Responsável</th><th>Diagnóstico</th><th>Status</th><th>Terapias</th><th></th></tr></thead>
+        <tbody>
+          {filtered.map(p => (
+            <tr key={p.id}>
+              <td>
+                <button className="name-link" onClick={()=>setViewingPatient(p)}>{p.nome}</button>
+              </td>
+              <td>{p.nascimento ? new Date(p.nascimento+"T00:00").toLocaleDateString('pt-BR') : "—"}</td>
+              <td>{p.responsavel}</td>
+              <td>{p.cid || "—"}</td>
+              <td><StatusBadge status={p.status}/></td>
+              <td><TherapyMiniBadges list={p.terapiasNecessarias}/></td>
+              <td>
+                <div className="row-actions">
+                  <button className="icon-btn" title="Ver perfil" onClick={()=>setViewingPatient(p)}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                  <button className="icon-btn" title="Editar" onClick={()=>onEdit(p)}><IconEdit/></button>
+                  <button className="icon-btn danger" title="Excluir" onClick={()=>onDelete(p)}><IconTrash/></button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+  {viewingPatient && <PatientProfile
+    patient={viewingPatient}
+    therapies={therapies||[]}
+    pts={pts||[]}
+    professionals={professionals||[]}
+    onClose={()=>setViewingPatient(null)}
+    onEdit={(p)=>{ setViewingPatient(null); onEdit(p); }}
+  />}
+  </>;
+}
+
+function ProfessionalsTab({ professionals, loading, save, remove, notify, filterConfigs }){
+  const [form, setForm] = useState(blankProfessional());
+  const [editing, setEditing] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [fEsp, setFEsp] = useState("");
+  const [fStatus, setFStatus] = useState("");
+  const dynF = useDynamicFilters(filterConfigs||[], 'profissionais');
+  const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
+
+  const filtered = useMemo(() => professionals.filter(p =>
+    (!fEsp || p.especialidade === fEsp) &&
+    (!fStatus || p.status === fStatus) &&
+    dynF.mine.every(cfg => !dynF.vals[cfg.field] || p[cfg.field] === dynF.vals[cfg.field])
+  ), [professionals, fEsp, fStatus, dynF.vals]);
+  const hasFilters = fEsp || fStatus;
+  const clearAll = () => { setFEsp(""); setFStatus(""); dynF.clear(); };
+
+  const submit = async () => {
+    if(!form.nome || !form.especialidade){ notify("Preencha nome e especialidade"); return; }
+    await save(form);
+    notify(editing ? "Profissional atualizado" : "Profissional cadastrado");
+    setForm(blankProfessional()); setEditing(null);
+  };
+
+  return <div>
+    <div className="card" style={{marginBottom:20}}>
+      <div className="section-title">{editing ? "Editar profissional" : "Novo profissional"}</div>
+      <div className="grid grid-2">
+        <Field label="Nome completo" required><input value={form.nome} onChange={set('nome')} placeholder="Nome do profissional"/></Field>
+        <Field label="Especialidade" required>
+          <select value={form.especialidade} onChange={set('especialidade')}>
+            <option value="">Selecione</option>
+            {ESPECIALIDADES.map(e => <option key={e}>{e}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="grid grid-3" style={{marginTop:16}}>
+        <Field label="Registro profissional"><input value={form.registro} onChange={set('registro')} placeholder="CRP, CREFITO, etc."/></Field>
+        <Field label="Telefone"><input value={form.telefone} onChange={set('telefone')} placeholder="(00) 00000-0000"/></Field>
+        <Field label="E-mail"><input value={form.email} onChange={set('email')} placeholder="email@exemplo.com"/></Field>
+      </div>
+      <div className="actions-row">
+        <button className="btn btn-primary" onClick={submit}>{editing ? "Salvar alterações" : "Cadastrar profissional"}</button>
+        {editing && <button className="btn btn-secondary" onClick={()=>{setEditing(null); setForm(blankProfessional());}}>Cancelar</button>}
+      </div>
+    </div>
+
+    <div className="card">
+      <div className="toolbar">
+        <select style={{maxWidth:220}} value={fEsp} onChange={e=>setFEsp(e.target.value)}>
+          <option value="">Especialidade (todas)</option>
+          {ESPECIALIDADES.map(e => <option key={e}>{e}</option>)}
+        </select>
+        <select style={{maxWidth:160}} value={fStatus} onChange={e=>setFStatus(e.target.value)}>
+          <option value="">Status (todos)</option>
+          <option>Ativo</option><option>Em pausa</option><option>Inativo</option>
+        </select>
+        <DynamicFilters mine={dynF.mine} vals={dynF.vals} setVal={dynF.setVal} data={professionals} clear={dynF.clear} hasAny={dynF.hasAny} />
+        {(hasFilters || dynF.hasAny) && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={clearAll}>Limpar filtros</button>}
+        <span className="count-pill">{filtered.length} profissional{filtered.length!==1?"is":""}</span>
+      </div>
+      {loading ? <div className="loading">Carregando...</div> :
+      filtered.length === 0 ? <div className="empty-state"><IconUsers/><div>Nenhum profissional encontrado.</div></div> :
+      <table>
+        <thead><tr><th>Nome</th><th>Especialidade</th><th>Registro</th><th>Contato</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {filtered.map(p => (
+            <tr key={p.id}>
+              <td>{p.nome}</td><td>{p.especialidade}</td><td>{p.registro||"—"}</td>
+              <td>{p.telefone || p.email || "—"}</td>
+              <td><StatusBadge status={p.status}/></td>
+              <td><div className="row-actions">
+                <button className="icon-btn" onClick={()=>{setEditing(p); setForm(p);}}><IconEdit/></button>
+                <button className="icon-btn danger" onClick={()=>setConfirmDel(p)}><IconTrash/></button>
+              </div></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>}
+    </div>
+    {confirmDel && <ConfirmModal title="Excluir profissional"
+      text={`Tem certeza que deseja excluir "${confirmDel.nome}"? Essa ação não pode ser desfeita.`}
+      onCancel={()=>setConfirmDel(null)}
+      onConfirm={async ()=>{ await remove(confirmDel.id); notify("Profissional excluído"); setConfirmDel(null); }} />}
+  </div>;
+}
+
+function TherapiesTab({ therapies, patients, professionals, loading, save, remove, notify, filterConfigs, tiposTerapia, preselect, onConsumePreselect, savePatient }){
+  const [form, setForm] = useState(blankTherapy());
+  const [editing, setEditing] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [fTipo, setFTipo] = useState("");
+  const [fStatus, setFStatus] = useState("");
+  const [highlight, setHighlight] = useState(false);
+  const dynF = useDynamicFilters(filterConfigs||[], 'terapias');
+  const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
+
+  useEffect(() => {
+    if(!preselect) return;
+    setEditing(null);
+    setForm({ ...blankTherapy(), pacienteId: preselect.pacienteId || "", tipo: preselect.tipo || "" });
+    setHighlight(true);
+    if(onConsumePreselect) onConsumePreselect();
+  }, [preselect]);
+
+  const highlightStyle = { border:'2px solid var(--warn)', boxShadow:'0 0 0 3px rgba(217,119,6,0.15)', borderRadius:10 };
+
+  const submit = async () => {
+    if(!form.pacienteId || !form.profissionalId || !form.tipo || !form.data){ notify("Preencha paciente, profissional, tipo e data"); return; }
+    await save(form);
+
+    // Se a sessão foi marcada como Realizada, ativa automaticamente essa terapia no cadastro do paciente
+    if(form.status === "Realizada" && savePatient){
+      const patient = patients.find(x => x.id === form.pacienteId);
+      if(patient){
+        const necessarias = patient.terapiasNecessarias || [];
+        let novaLista = necessarias.map(t => t.tipo===form.tipo ? {...t, status:"Ativo", posTriagem: !!form.posTriagem} : t);
+        if(!novaLista.some(t=>t.tipo===form.tipo)) novaLista = [...novaLista, {tipo: form.tipo, status:"Ativo", posTriagem: !!form.posTriagem}];
+        await savePatient({ ...patient, status:"Ativo", terapiasNecessarias: novaLista });
+      }
+    }
+
+    notify(editing ? "Sessão atualizada" : "Sessão registrada");
+    setForm(blankTherapy()); setEditing(null); setHighlight(false);
+  };
+
+  const nameOf = (list, id) => { const f = list.find(x=>x.id===id); return f ? f.nome : "—"; };
+  const filteredTherapies = useMemo(() => therapies.filter(t =>
+    (!fTipo || t.tipo === fTipo) &&
+    (!fStatus || t.status === fStatus) &&
+    dynF.mine.every(cfg => !dynF.vals[cfg.field] || t[cfg.field] === dynF.vals[cfg.field])
+  ), [therapies, fTipo, fStatus, dynF.vals]);
+  const hasFilters = fTipo || fStatus;
+  const clearAll = () => { setFTipo(""); setFStatus(""); dynF.clear(); };
+
+  return <div>
+    <div className="card" style={{marginBottom:20}}>
+      <div className="section-title">{editing ? "Editar sessão" : "Nova sessão de terapia"}</div>
+      {highlight && <div style={{
+        background:'var(--warn-soft)', border:'1px solid #fde68a', color:'#92400e',
+        borderRadius:10, padding:'10px 14px', marginBottom:16, fontSize:13.5, fontWeight:600,
+        display:'flex', alignItems:'center', gap:8
+      }}>
+        ⚠️ Complete o atendimento: selecione o <strong>profissional</strong>, confirme a <strong>data</strong>, defina o <strong>status</strong> e adicione uma <strong>observação</strong>, se necessário.
+      </div>}
+      <div className="grid grid-2">
+        <Field label="Paciente" required>
+          <select value={form.pacienteId} onChange={set('pacienteId')}>
+            <option value="">Selecione</option>
+            {patients.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+          </select>
+        </Field>
+        <Field label="Profissional" required>
+          <select value={form.profissionalId} onChange={e=>{ set('profissionalId')(e); }} style={highlight && !form.profissionalId ? highlightStyle : {}}>
+            <option value="">Selecione</option>
+            {professionals.map(p => <option key={p.id} value={p.id}>{p.nome} ({p.especialidade})</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="grid grid-3" style={{marginTop:16}}>
+        <Field label="Tipo de terapia" required>
+          <select value={form.tipo} onChange={set('tipo')}>
+            <option value="">Selecione</option>
+            {(tiposTerapia||[]).map(t => <option key={t}>{t}</option>)}
+          </select>
+        </Field>
+        <Field label="Data" required><input type="date" value={form.data} onChange={set('data')} style={highlight && !form.data ? highlightStyle : {}}/></Field>
+        <Field label="Horário"><input type="time" value={form.hora} onChange={set('hora')} /></Field>
+      </div>
+      <div className="grid grid-3" style={{marginTop:16}}>
+        <Field label="Duração (min)"><input type="number" value={form.duracao} onChange={set('duracao')} /></Field>
+        <Field label="Status">
+          <select value={form.status} onChange={set('status')} style={highlight ? highlightStyle : {}}>
+            <option>Agendada</option><option>Realizada</option><option>Cancelada</option><option>Faltou</option>
+          </select>
+        </Field>
+        <Field label="Observações"><input value={form.obs} onChange={set('obs')} placeholder="Notas da sessão" style={highlight && !form.obs ? highlightStyle : {}}/></Field>
+      </div>
+      {form.status === "Realizada" && (
+        <div style={{marginTop:16}}>
+          <label style={{display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:13.5, fontWeight:600}}>
+            <input type="checkbox" style={{width:16, height:16, accentColor:'var(--accent)'}} checked={!!form.posTriagem} onChange={e=>setForm(f=>({...f, posTriagem: e.target.checked}))} />
+            Essa ativação é pós triagem
+          </label>
+        </div>
+      )}
+      <div className="actions-row">
+        <button className="btn btn-primary" onClick={submit}>{editing ? "Salvar alterações" : "Registrar sessão"}</button>
+        {editing && <button className="btn btn-secondary" onClick={()=>{setEditing(null); setForm(blankTherapy());}}>Cancelar</button>}
+      </div>
+    </div>
+
+    <div className="card">
+      <div className="toolbar">
+        <select style={{maxWidth:200}} value={fTipo} onChange={e=>setFTipo(e.target.value)}>
+          <option value="">Tipo de terapia (todos)</option>
+          {(tiposTerapia||[]).map(t => <option key={t}>{t}</option>)}
+        </select>
+        <select style={{maxWidth:160}} value={fStatus} onChange={e=>setFStatus(e.target.value)}>
+          <option value="">Status (todos)</option>
+          <option>Agendada</option><option>Realizada</option><option>Cancelada</option><option>Faltou</option>
+        </select>
+        <DynamicFilters mine={dynF.mine} vals={dynF.vals} setVal={dynF.setVal} data={therapies} clear={dynF.clear} hasAny={dynF.hasAny} />
+        {(hasFilters || dynF.hasAny) && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={clearAll}>Limpar filtros</button>}
+        <span className="count-pill">{filteredTherapies.length} sessão(ões)</span>
+      </div>
+      {loading ? <div className="loading">Carregando...</div> :
+      filteredTherapies.length === 0 ? <div className="empty-state"><IconUsers/><div>Nenhuma sessão encontrada.</div></div> :
+      <table>
+        <thead><tr><th>Paciente</th><th>Profissional</th><th>Tipo</th><th>Data</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {filteredTherapies.sort((a,b)=> (b.data||"").localeCompare(a.data||"")).map(t => (
+            <tr key={t.id}>
+              <td>{nameOf(patients, t.pacienteId)}</td>
+              <td>{nameOf(professionals, t.profissionalId)}</td>
+              <td>{t.tipo}</td>
+              <td>{t.data ? new Date(t.data+"T00:00").toLocaleDateString('pt-BR') : "—"}{t.hora ? " · "+t.hora : ""}</td>
+              <td><StatusBadge status={t.status==="Realizada"?"Ativo":t.status==="Cancelada"||t.status==="Faltou"?"Inativo":"Em pausa"}/></td>
+              <td><div className="row-actions">
+                <button className="icon-btn" onClick={()=>{setEditing(t); setForm(t);}}><IconEdit/></button>
+                <button className="icon-btn danger" onClick={()=>setConfirmDel(t)}><IconTrash/></button>
+              </div></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>}
+    </div>
+    {confirmDel && <ConfirmModal title="Excluir sessão"
+      text="Tem certeza que deseja excluir esse registro de sessão? Essa ação não pode ser desfeita."
+      onCancel={()=>setConfirmDel(null)}
+      onConfirm={async ()=>{ await remove(confirmDel.id); notify("Sessão excluída"); setConfirmDel(null); }} />}
+  </div>;
+}
+
+function toCSV(rows, headers){
+  const esc = (v) => `"${String(v??"").replace(/"/g,'""')}"`;
+  const lines = [headers.map(h=>esc(h.label)).join(",")];
+  rows.forEach(r => lines.push(headers.map(h=>esc(r[h.key])).join(",")));
+  return lines.join("\n");
+}
+
+function downloadCSV(filename, csv){
+  const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function JsonViewerModal({ patients, professionals, therapies, pts, onClose, notify }){
+  const data = { pacientes: patients, profissionais: professionals, terapias: therapies, pts: pts||[] };
+  const json = JSON.stringify(data, null, 2);
+  const copy = async () => {
+    try{ await navigator.clipboard.writeText(json); notify("JSON copiado para a área de transferência"); }
+    catch(e){ notify("Não foi possível copiar automaticamente. Selecione o texto manualmente."); }
+  };
+  return <div className="modal-overlay" onClick={onClose}>
+    <div className="modal" style={{maxWidth:760, maxHeight:'85vh', display:'flex', flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
+      <h3>Dados brutos (JSON)</h3>
+      <p>{patients.length} paciente(s) · {professionals.length} profissional(is) · {therapies.length} sessão(ões) · {(pts||[]).length} PTS</p>
+      <pre style={{
+        background:'var(--panel2)', border:'1px solid var(--border)', borderRadius:9,
+        padding:16, fontSize:12.5, lineHeight:1.5, overflow:'auto', flex:1,
+        whiteSpace:'pre', color:'var(--text)', fontFamily:'ui-monospace, Menlo, monospace'
+      }}>{json}</pre>
+      <div className="actions-row">
+        <button className="btn btn-secondary" onClick={onClose}>Fechar</button>
+        <button className="btn btn-primary" onClick={copy}>Copiar JSON</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function ExportTab({ patients, professionals, therapies, pts, notify }){
+  const [showJson, setShowJson] = useState(false);
+  const exportPatients = () => {
+    const headers = [
+      {key:'nome',label:'Nome'},{key:'cpf',label:'CPF/CNS'},{key:'nascimento',label:'Nascimento'},
+      {key:'sexo',label:'Sexo'},{key:'mae',label:'Nome da mãe'},{key:'cid',label:'Diagnóstico CID'},
+      {key:'nivelTea',label:'Nível TEA'},{key:'comorbidades',label:'Comorbidades'},
+      {key:'responsavel',label:'Responsável'},{key:'parentesco',label:'Parentesco'},{key:'telefone',label:'Telefone'},
+      {key:'endereco',label:'Endereço'},{key:'unidade',label:'Unidade'},{key:'dataEntrada',label:'Data entrada'},
+      {key:'status',label:'Status'},{key:'obs',label:'Observações'}
+    ];
+    downloadCSV("pacientes.csv", toCSV(patients, headers));
+    notify("Exportação de pacientes baixada");
+  };
+  const exportProfessionals = () => {
+    const headers = [{key:'nome',label:'Nome'},{key:'especialidade',label:'Especialidade'},{key:'registro',label:'Registro'},{key:'telefone',label:'Telefone'},{key:'email',label:'E-mail'},{key:'status',label:'Status'}];
+    downloadCSV("profissionais.csv", toCSV(professionals, headers));
+    notify("Exportação de profissionais baixada");
+  };
+  const exportTherapies = () => {
+    const nameOf = (list, id) => { const f = list.find(x=>x.id===id); return f ? f.nome : ""; };
+    const rows = therapies.map(t => ({...t, pacienteNome: nameOf(patients, t.pacienteId), profissionalNome: nameOf(professionals, t.profissionalId)}));
+    const headers = [{key:'pacienteNome',label:'Paciente'},{key:'profissionalNome',label:'Profissional'},{key:'tipo',label:'Tipo'},{key:'data',label:'Data'},{key:'hora',label:'Hora'},{key:'duracao',label:'Duração'},{key:'status',label:'Status'},{key:'obs',label:'Observações'}];
+    downloadCSV("terapias.csv", toCSV(rows, headers));
+    notify("Exportação de terapias baixada");
+  };
+
+  const exportPTS = () => {
+    const nameOf = (id) => { const p = patients.find(x=>x.id===id); return p ? p.nome : ""; };
+    const dobOf  = (id) => { const p = patients.find(x=>x.id===id); return p ? p.nascimento : ""; };
+    const rows = pts.map(p => ({
+      ...p,
+      pacienteNome: nameOf(p.pacienteId),
+      nascimento: dobOf(p.pacienteId),
+    }));
+    const headers = [
+      {key:'pacienteNome', label:'Paciente'},
+      {key:'nascimento',   label:'Data de nascimento'},
+      {key:'renovacao1',   label:'1ª Reavaliação'},
+      {key:'renovacao2',   label:'2ª Reavaliação'},
+      {key:'renovacao3',   label:'3ª Reavaliação'},
+      {key:'dataAlta',     label:'Data da Alta'},
+      {key:'tipoAlta',     label:'Tipo de Alta'},
+      {key:'obs',          label:'Observações'},
+    ];
+    downloadCSV("plano-terapeutico-singular.csv", toCSV(rows, headers));
+    notify("Exportação de PTS baixada");
+  };
+
+  // ── Agregações usadas no Excel completo e no relatório PDF ──────────────────
+  const nameOfPatient = (id) => { const p = patients.find(x=>x.id===id); return p ? p.nome : "Desconhecido"; };
+  const nameOfProf = (id) => { const p = professionals.find(x=>x.id===id); return p ? p.nome : "Desconhecido"; };
+
+  const groupByTherapyStatus = (status) => {
+    const map = {};
+    patients.forEach(p => (p.terapiasNecessarias||[]).forEach(t => {
+      if(t.status === status) map[t.tipo] = (map[t.tipo]||0) + 1;
+    }));
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  };
+
+  const buildResumoRows = () => {
+    const ativos = patients.filter(p=>(p.terapiasNecessarias||[]).some(t=>t.status==="Ativo")).length;
+    const espera = patients.filter(p=>(p.terapiasNecessarias||[]).length===0).length;
+    const pausados = patients.filter(p=>p.status==="Em pausa").length;
+    const inativos = patients.filter(p=>p.status==="Inativo").length;
+    const rows = [
+      {indicador:"Total de pacientes", valor: patients.length},
+      {indicador:"Pacientes ativos (em ao menos 1 terapia)", valor: ativos},
+      {indicador:"Pacientes sem nenhuma terapia (espera)", valor: espera},
+      {indicador:"Pacientes em pausa", valor: pausados},
+      {indicador:"Pacientes inativos", valor: inativos},
+      {indicador:"Total de profissionais", valor: professionals.length},
+      {indicador:"Total de sessões registradas", valor: therapies.length},
+      {indicador:"Sessões realizadas", valor: therapies.filter(t=>t.status==="Realizada").length},
+      {indicador:"", valor:""},
+      {indicador:"— Crianças ATIVAS por terapia —", valor:""},
+      ...groupByTherapyStatus("Ativo").map(([tipo,n])=>({indicador:tipo, valor:n})),
+      {indicador:"", valor:""},
+      {indicador:"— Crianças EM ESPERA por terapia —", valor:""},
+      ...groupByTherapyStatus("Lista de espera").map(([tipo,n])=>({indicador:tipo, valor:n})),
+    ];
+    return rows;
+  };
+
+  const exportExcelCompleto = () => {
+    if(typeof XLSX === "undefined"){ notify("Biblioteca de Excel não carregou. Verifique sua conexão."); return; }
+    const wb = XLSX.utils.book_new();
+
+    const resumoWs = XLSX.utils.json_to_sheet(buildResumoRows(), {header:['indicador','valor']});
+    XLSX.utils.sheet_add_aoa(resumoWs, [["Indicador","Valor"]], {origin:"A1"});
+    XLSX.utils.book_append_sheet(wb, resumoWs, "Resumo");
+
+    const pacientesRows = patients.map(p => ({
+      Nome:p.nome, "CPF/CNS":p.cpf, Nascimento:p.nascimento, Sexo:p.sexo, "Nome da mãe":p.mae,
+      "Diagnóstico CID":p.cid, "Nível TEA":p.nivelTea, Comorbidades:p.comorbidades,
+      Responsável:p.responsavel, Parentesco:p.parentesco, Telefone:p.telefone, Endereço:p.endereco,
+      Unidade:p.unidade, "Data entrada":p.dataEntrada, Status:p.status,
+      "Terapias necessárias": (p.terapiasNecessarias||[]).map(t=>`${t.tipo} (${t.status}${t.posTriagem?" · pós triagem":""})`).join("; "),
+      Observações:p.obs
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pacientesRows), "Pacientes");
+
+    const profRows = professionals.map(p => ({ Nome:p.nome, Especialidade:p.especialidade, Registro:p.registro, Telefone:p.telefone, "E-mail":p.email, Status:p.status }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(profRows), "Profissionais");
+
+    const terapiasRows = therapies.map(t => ({
+      Paciente:nameOfPatient(t.pacienteId), Profissional:nameOfProf(t.profissionalId), Tipo:t.tipo,
+      Data:t.data, Hora:t.hora, "Duração (min)":t.duracao, Status:t.status, Observações:t.obs
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(terapiasRows), "Terapias");
+
+    const ptsRows = pts.map(p => ({
+      Paciente:nameOfPatient(p.pacienteId), "1ª Reavaliação":p.renovacao1, "2ª Reavaliação":p.renovacao2,
+      "3ª Reavaliação":p.renovacao3, "Data da Alta":p.dataAlta, "Tipo de Alta":p.tipoAlta, Observações:p.obs
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ptsRows), "PTS");
+
+    XLSX.writeFile(wb, `relatorio-completo-${new Date().toISOString().slice(0,10)}.xlsx`);
+    notify("Excel completo baixado");
+  };
+
+  const generatePDFReport = () => {
+    if(typeof window.jspdf === "undefined"){ notify("Biblioteca de PDF não carregou. Verifique sua conexão."); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    let y = 18;
+
+    doc.setFontSize(16); doc.setFont(undefined, "bold");
+    doc.text("Relatório Geral — Sistema de Pacientes", 14, y);
+    doc.setFontSize(10); doc.setFont(undefined, "normal");
+    y += 7;
+    doc.text(`Gerado em ${hoje}`, 14, y);
+
+    const ativos = patients.filter(p=>(p.terapiasNecessarias||[]).some(t=>t.status==="Ativo")).length;
+    const espera = patients.filter(p=>(p.terapiasNecessarias||[]).length===0).length;
+
+    y += 8;
+    doc.autoTable({
+      startY: y,
+      head: [["Indicador","Valor"]],
+      body: [
+        ["Total de pacientes", String(patients.length)],
+        ["Pacientes ativos (em ao menos 1 terapia)", String(ativos)],
+        ["Pacientes sem nenhuma terapia (espera)", String(espera)],
+        ["Total de profissionais", String(professionals.length)],
+        ["Total de sessões registradas", String(therapies.length)],
+        ["Sessões realizadas", String(therapies.filter(t=>t.status==="Realizada").length)],
+      ],
+      theme: "grid",
+      headStyles: { fillColor: [59,111,240] },
+      styles: { fontSize: 9 },
+      margin: { left: 14, right: 14 },
+    });
+
+    y = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(12); doc.setFont(undefined, "bold");
+    doc.text("Crianças ativas por terapia", 14, y);
+    doc.autoTable({
+      startY: y + 4,
+      head: [["Terapia","Crianças ativas"]],
+      body: groupByTherapyStatus("Ativo").map(([tipo,n])=>[tipo, String(n)]),
+      theme: "striped",
+      headStyles: { fillColor: [22,163,74] },
+      styles: { fontSize: 9 },
+      margin: { left: 14, right: 14 },
+    });
+
+    y = doc.lastAutoTable.finalY + 10;
+    if(y > 250){ doc.addPage(); y = 18; }
+    doc.setFontSize(12); doc.setFont(undefined, "bold");
+    doc.text("Crianças em lista de espera por terapia", 14, y);
+    doc.autoTable({
+      startY: y + 4,
+      head: [["Terapia","Crianças aguardando"]],
+      body: groupByTherapyStatus("Lista de espera").map(([tipo,n])=>[tipo, String(n)]),
+      theme: "striped",
+      headStyles: { fillColor: [217,119,6] },
+      styles: { fontSize: 9 },
+      margin: { left: 14, right: 14 },
+    });
+
+    // Lista nominal de espera (ordenada por tempo de espera)
+    const emEspera = patients
+      .filter(p => (p.terapiasNecessarias||[]).some(t=>t.status==="Lista de espera"))
+      .sort((a,b) => { if(!a.dataEntrada) return 1; if(!b.dataEntrada) return -1; return a.dataEntrada.localeCompare(b.dataEntrada); });
+    if(emEspera.length){
+      doc.addPage(); y = 18;
+      doc.setFontSize(14); doc.setFont(undefined, "bold");
+      doc.text("Relação nominal — Lista de espera", 14, y);
+      doc.autoTable({
+        startY: y + 6,
+        head: [["#","Nome","Entrada","Terapias pendentes"]],
+        body: emEspera.map((p,i) => [
+          String(i+1), p.nome, p.dataEntrada || "—",
+          (p.terapiasNecessarias||[]).filter(t=>t.status==="Lista de espera").map(t=>t.tipo).join(", ")
+        ]),
+        theme: "grid",
+        headStyles: { fillColor: [99,102,241] },
+        styles: { fontSize: 8.5 },
+        margin: { left: 14, right: 14 },
+      });
+    }
+
+    doc.save(`relatorio-geral-${new Date().toISOString().slice(0,10)}.pdf`);
+    notify("Relatório em PDF baixado");
+  };
+
+  return <div className="card">
+    <div className="section-title">Relatórios completos</div>
+    <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Gere um relatório completo pronto para apresentação ou prestação de contas.</p>
+    <div className="grid grid-2" style={{marginBottom:8}}>
+      <button className="btn btn-primary" onClick={generatePDFReport}>📄 Gerar relatório em PDF</button>
+      <button className="btn btn-primary" onClick={exportExcelCompleto}>📊 Baixar Excel completo (.xlsx)</button>
+    </div>
+    <p style={{color:'var(--muted)', fontSize:12, marginBottom:20}}>
+      O PDF traz um resumo executivo (indicadores, terapias ativas/em espera e relação nominal da lista de espera). O Excel traz todas as tabelas (Resumo, Pacientes, Profissionais, Terapias e PTS) em abas separadas, prontas para editar.
+    </p>
+
+    <div className="section-title">Exportar dados individuais (CSV)</div>
+    <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Baixe cada tabela separadamente em formato CSV, compatível com Excel e Google Planilhas.</p>
+    <div className="grid grid-2">
+      <button className="btn btn-secondary" onClick={exportPatients}>Exportar pacientes ({patients.length})</button>
+      <button className="btn btn-secondary" onClick={exportProfessionals}>Exportar profissionais ({professionals.length})</button>
+      <button className="btn btn-secondary" onClick={exportTherapies}>Exportar terapias ({therapies.length})</button>
+      <button className="btn btn-secondary" onClick={exportPTS}>Exportar Plano Terapêutico Singular ({pts.length})</button>
+    </div>
+
+    <div className="section-title">Dados brutos</div>
+    <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Visualize todo o banco de dados em formato JSON, direto na tela.</p>
+    <button className="btn btn-secondary" onClick={()=>setShowJson(true)}>Abrir dados em JSON</button>
+
+    {showJson && <JsonViewerModal patients={patients} professionals={professionals} therapies={therapies} pts={pts} onClose={()=>setShowJson(false)} notify={notify} />}
+  </div>;
+}
+
+// ── Hook: configuração de filtros personalizados ──────────────────────────────
+function useFilterConfig(){
+  const KEY = "filterConfig:v1";
+  const [configs, setConfigs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try{
+      const r = await window.storage.get(KEY, true);
+      setConfigs(r ? JSON.parse(r.value) : []);
+    }catch(e){ setConfigs([]); }
+    setLoading(false);
+  }, []);
+
+  useEffect(()=>{ load(); }, [load]);
+
+  const saveAll = useCallback(async (list) => {
+    await window.storage.set(KEY, JSON.stringify(list), true);
+    setConfigs(list);
+  }, []);
+
+  const add = useCallback(async (cfg) => {
+    const next = [...configs, {...cfg, id: uid()}];
+    await saveAll(next);
+  }, [configs, saveAll]);
+
+  const remove = useCallback(async (id) => {
+    await saveAll(configs.filter(c => c.id !== id));
+  }, [configs, saveAll]);
+
+  const move = useCallback(async (id, dir) => {
+    const list = [...configs];
+    const i = list.findIndex(c => c.id === id);
+    const j = i + dir;
+    if(j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    await saveAll(list);
+  }, [configs, saveAll]);
+
+  return { configs, loading, add, remove, move };
+}
+
+// Campos disponíveis por seção
+const FIELDS_BY_SECTION = {
+  pacientes: [
+    {key:'sexo', label:'Sexo'},
+    {key:'cid', label:'Diagnóstico CID'},
+    {key:'nivelTea', label:'Nível de suporte TEA'},
+    {key:'comorbidades', label:'Comorbidades'},
+    {key:'parentesco', label:'Parentesco'},
+    {key:'unidade', label:'Unidade de saúde'},
+    {key:'status', label:'Status'},
+  ],
+  profissionais: [
+    {key:'especialidade', label:'Especialidade'},
+    {key:'status', label:'Status'},
+  ],
+  terapias: [
+    {key:'tipo', label:'Tipo de terapia'},
+    {key:'status', label:'Status'},
+  ],
+};
+
+function FiltrosTab({ configs, loading, add, remove, move, notify, tiposTerapia }){
+  const blankFilter = {section:'pacientes', field:'', label:''};
+  const [form, setForm] = useState(blankFilter);
+  const set = (k) => (e) => setForm(f => {
+    const upd = {...f, [k]: e.target.value};
+    if(k === 'section'){ upd.field = ''; upd.label = ''; }
+    if(k === 'field'){
+      const opt = (FIELDS_BY_SECTION[f.section]||[]).find(x=>x.key===e.target.value);
+      if(opt) upd.label = opt.label;
+    }
+    return upd;
+  });
+
+  const submit = async () => {
+    if(!form.field || !form.label){ notify("Selecione o campo e informe o rótulo"); return; }
+    if(configs.some(c => c.section === form.section && c.field === form.field)){
+      notify("Esse filtro já está adicionado para esta seção"); return;
+    }
+    await add(form);
+    notify("Filtro adicionado");
+    setForm(blankFilter);
+  };
+
+  const secLabel = {pacientes:'Pacientes', profissionais:'Profissionais', terapias:'Terapias'};
+  const sections = ['pacientes','profissionais','terapias'];
+
+  return <div>
+    <div className="card" style={{marginBottom:20}}>
+      <div className="section-title">Adicionar novo filtro</div>
+      <p style={{color:'var(--muted)', fontSize:13, marginBottom:20, lineHeight:1.6}}>
+        Escolha em qual tela o filtro vai aparecer, qual campo usar e o rótulo que a equipe vai ver. Os filtros são compartilhados entre toda a equipe.
+      </p>
+      <div className="grid grid-3">
+        <Field label="Seção">
+          <select value={form.section} onChange={set('section')}>
+            {sections.map(s => <option key={s} value={s}>{secLabel[s]}</option>)}
+          </select>
+        </Field>
+        <Field label="Campo" required>
+          <select value={form.field} onChange={set('field')}>
+            <option value="">Selecione o campo</option>
+            {(FIELDS_BY_SECTION[form.section]||[]).map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Rótulo do filtro" required>
+          <input value={form.label} onChange={set('label')} placeholder="Ex: Unidade de saúde" />
+        </Field>
+      </div>
+      <div className="actions-row">
+        <button className="btn btn-primary" onClick={submit}><IconPlus/> Adicionar filtro</button>
+      </div>
+    </div>
+
+    {loading ? <div className="loading">Carregando...</div> :
+    sections.map(sec => {
+      const group = configs.filter(c => c.section === sec);
+      return <div key={sec} className="card" style={{marginBottom:16}}>
+        <div className="section-title">{secLabel[sec]}</div>
+        {group.length === 0
+          ? <p style={{color:'var(--muted)', fontSize:13, margin:0}}>Nenhum filtro personalizado nesta seção ainda.</p>
+          : <table>
+              <thead><tr><th>#</th><th>Rótulo</th><th>Campo</th><th>Ordem</th><th></th></tr></thead>
+              <tbody>
+                {group.map((c, idx) => (
+                  <tr key={c.id}>
+                    <td style={{color:'var(--muted)', fontSize:12}}>{idx+1}</td>
+                    <td>{c.label}</td>
+                    <td><code style={{background:'var(--panel2)', padding:'2px 7px', borderRadius:5, fontSize:12, color:'var(--accent)'}}>{c.field}</code></td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="icon-btn" title="Mover para cima" onClick={()=>move(c.id,-1)} disabled={idx===0}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                        </button>
+                        <button className="icon-btn" title="Mover para baixo" onClick={()=>move(c.id,1)} disabled={idx===group.length-1}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                        </button>
+                      </div>
+                    </td>
+                    <td>
+                      <button className="icon-btn danger" title="Remover filtro" onClick={async ()=>{ await remove(c.id); notify("Filtro removido"); }}>
+                        <IconTrash/>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        }
+      </div>;
+    })}
+
+    <div className="card" style={{marginTop:16}}>
+      <div className="section-title">Tipos de terapia</div>
+      <p style={{color:'var(--muted)', fontSize:13, marginBottom:20, lineHeight:1.6}}>
+        Adicione, remova ou reordene os tipos de terapia disponíveis no formulário de sessões. As alterações são compartilhadas com toda a equipe.
+      </p>
+      <div style={{display:'flex', gap:12, marginBottom:20, flexWrap:'wrap', alignItems:'flex-end'}}>
+        <div style={{flex:1, minWidth:220}}>
+          <Field label="Nome do novo tipo">
+            <input
+              id="new-tipo-input"
+              placeholder="Ex: Hidroterapia, Equoterapia..."
+              onKeyDown={async (e)=>{
+                if(e.key==='Enter' && e.target.value.trim()){
+                  const v = e.target.value.trim();
+                  if(tiposTerapia.tipos.includes(v)){ notify("Esse tipo já existe"); return; }
+                  await tiposTerapia.add(v); notify("Tipo adicionado"); e.target.value='';
+                }
+              }}
+            />
+          </Field>
+        </div>
+        <button className="btn btn-primary" style={{marginBottom:4}} onClick={async ()=>{
+          const inp = document.getElementById('new-tipo-input');
+          const v = inp.value.trim();
+          if(!v){ notify("Digite o nome do tipo"); return; }
+          if(tiposTerapia.tipos.includes(v)){ notify("Esse tipo já existe"); return; }
+          await tiposTerapia.add(v); notify("Tipo adicionado"); inp.value='';
+        }}><IconPlus/> Adicionar</button>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Tipo de terapia</th><th>Ordem</th><th></th></tr></thead>
+        <tbody>
+          {tiposTerapia.tipos.map((t, idx) => (
+            <tr key={t}>
+              <td style={{color:'var(--muted)', fontSize:12, width:40}}>{idx+1}</td>
+              <td>{t}</td>
+              <td style={{width:90}}>
+                <div className="row-actions">
+                  <button className="icon-btn" title="Mover para cima" onClick={()=>tiposTerapia.move(t,-1)} disabled={idx===0}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                  </button>
+                  <button className="icon-btn" title="Mover para baixo" onClick={()=>tiposTerapia.move(t,1)} disabled={idx===tiposTerapia.tipos.length-1}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                  </button>
+                </div>
+              </td>
+              <td style={{width:50}}>
+                <button className="icon-btn danger" title="Remover" onClick={async ()=>{ await tiposTerapia.remove(t); notify("Tipo removido"); }}>
+                  <IconTrash/>
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>;
+}
+
+// ── Hook: valores de filtro dinâmico ─────────────────────────────────────────
+function useDynamicFilters(configs, section){
+  const [vals, setVals] = useState({});
+  const mine = useMemo(() => configs.filter(c => c.section === section), [configs, section]);
+  const clear = () => setVals({});
+  const hasAny = Object.values(vals).some(Boolean);
+  return { mine, vals, setVal: (field, v) => setVals(prev => ({...prev, [field]: v})), clear, hasAny };
+}
+
+function DynamicFilters({ mine, vals, setVal, data, clear, hasAny }){
+  if(mine.length === 0) return null;
+  return <>
+    {mine.map(cfg => {
+      const options = Array.from(new Set(data.map(r => r[cfg.field]).filter(Boolean)));
+      return <select key={cfg.id} style={{maxWidth:200}} value={vals[cfg.field]||""} onChange={e=>setVal(cfg.field, e.target.value)}>
+        <option value="">{cfg.label} (todos)</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>;
+    })}
+    {hasAny && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={clear}>Limpar filtros</button>}
+  </>;
+}
+
+
+
+// ── PTS - Plano Terapêutico Singular ─────────────────────────────────────────
+const TIPOS_ALTA = ["Alta por Objetivo Alcançado","Alta a Pedido da Família","Alta por Abandono","Alta Administrativa","Transferência","Outro"];
+
+const blankPTS = () => ({
+  id: null, pacienteId:"",
+  renovacao1:"", renovacao2:"", renovacao3:"",
+  dataAlta:"", tipoAlta:"", obs:""
+});
+
+function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatientId, onConsumePreselect }){
+  const [form, setForm] = useState(blankPTS());
+  const [editing, setEditing] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [search, setSearch] = useState("");
+  const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
+
+  useEffect(() => {
+    if(!preselectPatientId) return;
+    const existente = pts.find(p => p.pacienteId === preselectPatientId);
+    if(existente){
+      setEditing(existente);
+      setForm(existente);
+    } else {
+      setEditing(null);
+      setForm({ ...blankPTS(), pacienteId: preselectPatientId });
+    }
+    if(onConsumePreselect) onConsumePreselect();
+  }, [preselectPatientId, pts]);
+
+  const selectedPatient = useMemo(() =>
+    patients.find(p => p.id === form.pacienteId) || null
+  , [patients, form.pacienteId]);
+
+  const submit = async () => {
+    if(!form.pacienteId){ notify("Selecione um paciente"); return; }
+    if(pts.find(p => p.pacienteId === form.pacienteId && p.id !== form.id)){
+      notify("Já existe um PTS para este paciente. Edite o existente."); return;
+    }
+    await save(form);
+    notify(editing ? "PTS atualizado" : "PTS criado");
+    setForm(blankPTS()); setEditing(null);
+  };
+
+  const startEdit = (p) => { setEditing(p); setForm(p); };
+  const cancelEdit = () => { setEditing(null); setForm(blankPTS()); };
+
+  const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
+
+  const filteredPTS = useMemo(() => {
+    const t = search.toLowerCase();
+    return pts.filter(p => {
+      const pac = patients.find(x => x.id === p.pacienteId);
+      return !t || (pac && (pac.nome||"").toLowerCase().includes(t));
+    });
+  }, [pts, patients, search]);
+
+  const patientName = (id) => { const p = patients.find(x=>x.id===id); return p ? p.nome : "—"; };
+  const patientDOB  = (id) => { const p = patients.find(x=>x.id===id); return p ? fmt(p.nascimento) : "—"; };
+
+  // Pacientes ainda sem PTS (para o select de novo)
+  const patientsWithPTS = new Set(pts.map(p => p.pacienteId));
+  const availablePatients = editing
+    ? patients
+    : patients.filter(p => !patientsWithPTS.has(p.id));
+
+  return <div>
+    <div className="card" style={{marginBottom:20}}>
+      <div className="section-title">{editing ? "Editar PTS" : "Novo Plano Terapêutico Singular"}</div>
+
+      <div className="grid grid-2" style={{marginBottom:16}}>
+        <Field label="Paciente" required>
+          <select value={form.pacienteId} onChange={set('pacienteId')} disabled={!!editing}>
+            <option value="">Selecione o paciente</option>
+            {availablePatients.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+          </select>
+        </Field>
+        <Field label="Data de nascimento">
+          <input value={selectedPatient ? fmt(selectedPatient.nascimento) : ""} disabled
+            style={{opacity:.6, cursor:'not-allowed'}} placeholder="Preenchido automaticamente" />
+        </Field>
+      </div>
+
+      <div className="section-title">Reavaliações</div>
+      <div className="grid grid-3">
+        <Field label="Data da 1ª Renovação de PTS"><input type="date" value={form.renovacao1} onChange={set('renovacao1')} /></Field>
+        <Field label="Data da 2ª Renovação de PTS"><input type="date" value={form.renovacao2} onChange={set('renovacao2')} /></Field>
+        <Field label="Data da 3ª Renovação de PTS"><input type="date" value={form.renovacao3} onChange={set('renovacao3')} /></Field>
+      </div>
+
+      <div className="section-title">Alta</div>
+      <div className="grid grid-2" style={{marginBottom:16}}>
+        <Field label="Data da Alta"><input type="date" value={form.dataAlta} onChange={set('dataAlta')} /></Field>
+        <Field label="Tipo de Alta">
+          <select value={form.tipoAlta} onChange={set('tipoAlta')}>
+            <option value="">Selecione</option>
+            {TIPOS_ALTA.map(t => <option key={t}>{t}</option>)}
+          </select>
+        </Field>
+      </div>
+
+      <Field label="Observações">
+        <textarea value={form.obs} onChange={set('obs')} placeholder="Informações adicionais sobre o plano terapêutico..." />
+      </Field>
+
+      <div className="actions-row">
+        <button className="btn btn-primary" onClick={submit}>{editing ? "Salvar alterações" : "Criar PTS"}</button>
+        {editing && <button className="btn btn-secondary" onClick={cancelEdit}>Cancelar</button>}
+        {editing && <button className="btn btn-danger" onClick={()=>setConfirmDel(editing)}><IconTrash/> Excluir PTS</button>}
+      </div>
+    </div>
+
+    <div className="card">
+      <div className="toolbar">
+        <input placeholder="Buscar por nome do paciente..." value={search} onChange={e=>setSearch(e.target.value)} />
+        <span className="count-pill">{filteredPTS.length} PTS</span>
+      </div>
+      {loading ? <div className="loading">Carregando...</div> :
+      filteredPTS.length === 0
+        ? <div className="empty-state"><IconUsers/><div>Nenhum PTS cadastrado ainda.</div></div>
+        : <table>
+            <thead>
+              <tr>
+                <th>Paciente</th>
+                <th>Nascimento</th>
+                <th>1ª Renovação</th>
+                <th>2ª Renovação</th>
+                <th>3ª Renovação</th>
+                <th>Data Alta</th>
+                <th>Tipo Alta</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPTS.map(p => (
+                <tr key={p.id}>
+                  <td style={{fontWeight:500}}>{patientName(p.pacienteId)}</td>
+                  <td>{patientDOB(p.pacienteId)}</td>
+                  <td>{fmt(p.renovacao1)}</td>
+                  <td>{fmt(p.renovacao2)}</td>
+                  <td>{fmt(p.renovacao3)}</td>
+                  <td>{fmt(p.dataAlta)}</td>
+                  <td>{p.tipoAlta || "—"}</td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="icon-btn" onClick={()=>startEdit(p)}><IconEdit/></button>
+                      <button className="icon-btn danger" onClick={()=>setConfirmDel(p)}><IconTrash/></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+      }
+    </div>
+
+    {confirmDel && <ConfirmModal
+      title="Excluir PTS"
+      text={`Tem certeza que deseja excluir o PTS de "${patientName(confirmDel.pacienteId)}"? Essa ação não pode ser desfeita.`}
+      onCancel={()=>setConfirmDel(null)}
+      onConfirm={async ()=>{ await remove(confirmDel.id); notify("PTS excluído"); setConfirmDel(null); cancelEdit(); }}
+    />}
+  </div>;
+}
+
+
+
+function WaitingListTab({ patients, loading, onEdit, professionals, tiposTerapia, savePatient, saveTherapy, notify, onColocarAtendimento }){
+  const [q, setQ] = useState("");
+  const [fTerapia, setFTerapia] = useState("");
+  const waiting = useMemo(() => patients.filter(p =>
+    p.status === "Lista de espera" || (p.terapiasNecessarias||[]).some(t => t.status === "Lista de espera")
+  ), [patients]);
+  const parciais = useMemo(() => waiting.filter(p => p.status !== "Lista de espera"), [waiting]);
+  const filtered = useMemo(() => {
+    const t = q.toLowerCase();
+    return waiting
+      .filter(p =>
+        ((p.nome||"").toLowerCase().includes(t) ||
+        (p.responsavel||"").toLowerCase().includes(t) ||
+        (p.cid||"").toLowerCase().includes(t) ||
+        (p.unidade||"").toLowerCase().includes(t)) &&
+        (!fTerapia || (p.terapiasNecessarias||[]).some(x => x.tipo === fTerapia && x.status === "Lista de espera"))
+      )
+      .sort((a, b) => {
+        if(!a.dataEntrada) return 1;
+        if(!b.dataEntrada) return -1;
+        return a.dataEntrada.localeCompare(b.dataEntrada);
+      });
+  }, [waiting, q, fTerapia]);
+
+  const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
+  const calcIdade = (nasc) => {
+    if(!nasc) return "—";
+    const diff = Date.now() - new Date(nasc+"T00:00").getTime();
+    return Math.floor(diff / (365.25*24*3600*1000)) + " anos";
+  };
+  const diasEspera = (entrada) => {
+    if(!entrada) return "—";
+    const diff = Date.now() - new Date(entrada+"T00:00").getTime();
+    return Math.floor(diff / (24*3600*1000)) + " dias";
+  };
+
+  const byTerapia = useMemo(() => {
+    const map = {};
+    waiting.forEach(p => {
+      (p.terapiasNecessarias||[]).forEach(t => {
+        if(t.status === "Lista de espera") map[t.tipo] = (map[t.tipo]||0) + 1;
+      });
+    });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  }, [waiting]);
+  const totalPendencias = useMemo(() => byTerapia.reduce((s,[,n])=>s+n, 0), [byTerapia]);
+
+  const byCid = useMemo(() => {
+    const map = {};
+    waiting.forEach(p => {
+      const c = p.cid || "Não informado";
+      map[c] = (map[c]||0) + 1;
+    });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  }, [waiting]);
+
+  return <div>
+    <div className="stat-grid">
+      <div className="stat-card blue">
+        <div className="stat-num">{waiting.length}</div>
+        <div className="stat-label">Total com terapia(s) pendente(s)</div>
+      </div>
+      <div className="stat-card warn">
+        <div className="stat-num">{parciais.length}</div>
+        <div className="stat-label">Ativos aguardando outra terapia</div>
+      </div>
+      <div className="stat-card green">
+        <div className="stat-num">{patients.filter(p=>p.status==="Ativo").length}</div>
+        <div className="stat-label">Pacientes ativos</div>
+      </div>
+      <div className="stat-card red">
+        <div className="stat-num">{patients.filter(p=>p.status==="Inativo").length}</div>
+        <div className="stat-label">Inativos</div>
+      </div>
+    </div>
+
+    {byTerapia.length > 0 && <div className="card" style={{marginBottom:16}}>
+      <div className="section-title">Lista de espera por terapia</div>
+      <table>
+        <thead><tr><th>Terapia</th><th>Crianças aguardando</th></tr></thead>
+        <tbody>
+          {byTerapia.map(([tipo, n]) => (
+            <tr key={tipo}>
+              <td>{tipo}</td>
+              <td>
+                <div style={{display:'flex', alignItems:'center', gap:10}}>
+                  <div style={{flex:1, maxWidth:200, height:8, background:'#e2e8f0', borderRadius:99, overflow:'hidden'}}>
+                    <div style={{width:`${Math.round((n/totalPendencias)*100)}%`, height:'100%', background:'#6366f1', borderRadius:99}}/>
+                  </div>
+                  <span style={{fontWeight:700, color:'#6366f1'}}>{n}</span>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>}
+
+    <div className="card">
+      <div className="toolbar">
+        <input placeholder="Buscar por nome, responsável, diagnóstico ou unidade..." value={q} onChange={e=>setQ(e.target.value)} />
+        <select style={{maxWidth:220}} value={fTerapia} onChange={e=>setFTerapia(e.target.value)}>
+          <option value="">Terapia (todas)</option>
+          {byTerapia.map(([tipo]) => <option key={tipo} value={tipo}>{tipo}</option>)}
+        </select>
+        <span className="count-pill" style={{background:'#f0f0ff', color:'#6366f1', border:'1px solid #c7d2fe'}}>
+          {fTerapia
+            ? <>{filtered.length} criança{filtered.length!==1?"s":""} aguardando por <strong>{fTerapia}</strong></>
+            : <>{filtered.length} paciente{filtered.length!==1?"s":""} em espera</>
+          }
+        </span>
+      </div>
+      {loading ? <div className="loading">Carregando...</div> :
+      waiting.length === 0
+        ? <div className="empty-state">
+            <IconUsers/>
+            <div>Nenhum paciente em lista de espera.</div>
+            <div style={{fontSize:12, marginTop:6}}>Para adicionar, vá em "Novo cadastro" e selecione o status "Lista de espera".</div>
+          </div>
+        : filtered.length === 0
+          ? <div className="empty-state"><IconUsers/><div>Nenhum resultado para a busca.</div></div>
+          : <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Nome</th>
+                  <th>Idade</th>
+                  <th>Responsável</th>
+                  <th>Diagnóstico</th>
+                  <th>Situação</th>
+                  <th>Terapias (por prioridade)</th>
+                  <th>Unidade</th>
+                  <th>Entrada</th>
+                  <th>Tempo de espera</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p, i) => (
+                  <tr key={p.id}>
+                    <td style={{color:'var(--muted)', fontWeight:700}}>{i+1}</td>
+                    <td style={{fontWeight:600}}>{p.nome}</td>
+                    <td>{calcIdade(p.nascimento)}</td>
+                    <td>{p.responsavel || "—"}</td>
+                    <td>{p.cid || "—"}</td>
+                    <td>
+                      <StatusBadge status={p.status}/>
+                      {p.status !== "Lista de espera" && <div style={{fontSize:11, color:'var(--warn)', fontWeight:700, marginTop:4}}>⚠ aguarda outra terapia</div>}
+                    </td>
+                    <td><TherapyMiniBadges list={p.terapiasNecessarias}/></td>
+                    <td>{p.unidade || "—"}</td>
+                    <td>{fmt(p.dataEntrada)}</td>
+                    <td>
+                      <span style={{
+                        fontWeight:700,
+                        color: !p.dataEntrada ? 'var(--muted)'
+                          : Math.floor((Date.now()-new Date(p.dataEntrada+"T00:00"))/(24*3600*1000)) > 90 ? 'var(--danger)'
+                          : Math.floor((Date.now()-new Date(p.dataEntrada+"T00:00"))/(24*3600*1000)) > 30 ? 'var(--warn)'
+                          : 'var(--ok)'
+                      }}>
+                        {diasEspera(p.dataEntrada)}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="icon-btn" title="Colocar em atendimento" style={{color:'var(--ok)', borderColor:'#bbf7d0'}} onClick={()=>{
+                          const pendentes = (p.terapiasNecessarias||[]).filter(t => t.status === "Lista de espera");
+                          const tipo = pendentes[0] ? pendentes[0].tipo : "";
+                          onColocarAtendimento && onColocarAtendimento(p, tipo);
+                        }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        </button>
+                        <button className="icon-btn" title="Editar cadastro" onClick={()=>onEdit(p)}><IconEdit/></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+      }
+    </div>
+  </div>;
+}
+
+// ── Motor de alertas ─────────────────────────────────────────────────────────
+function useAlerts(patients, pts){
+  return useMemo(() => {
+    const alerts = [];
+    const hoje = Date.now();
+    const dias = (d) => d ? Math.floor((hoje - new Date(d+"T00:00").getTime()) / (24*3600*1000)) : null;
+    const diasFuturos = (d) => d ? Math.floor((new Date(d+"T00:00").getTime() - hoje) / (24*3600*1000)) : null;
+    const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
+
+    // ── alertas de PTS ────────────────────────────────────────────────────
+    pts.forEach(p => {
+      const pac = patients.find(x => x.id === p.pacienteId);
+      const nome = pac ? pac.nome : "Paciente desconhecido";
+
+      const reavs = [
+        {campo: "1ª Reavaliação", data: p.renovacao1, proxData: p.renovacao2, proxCampo: "2ª Reavaliação"},
+        {campo: "2ª Reavaliação", data: p.renovacao2, proxData: p.renovacao3, proxCampo: "3ª Reavaliação"},
+        {campo: "3ª Reavaliação", data: p.renovacao3, proxData: p.dataAlta, proxCampo: "Data de Alta"},
+      ];
+
+      reavs.forEach(({campo, data, proxData, proxCampo}) => {
+        if(!data) return;
+        const df = diasFuturos(data);
+        if(df !== null && df >= 0 && df <= 15){
+          alerts.push({ id: p.id+campo+"prox", type:"pts", level:"red", nome, msg:`${campo} em ${df === 0 ? "hoje" : df+" dias"} (${fmt(data)})`, sub:`Registre a reavaliação do PTS ou atualize o plano.` });
+        } else if(df !== null && df > 15 && df <= 30){
+          alerts.push({ id: p.id+campo+"breve", type:"pts", level:"orange", nome, msg:`${campo} em ${df} dias (${fmt(data)})`, sub:`Prepare-se para a reavaliação do PTS.` });
+        } else if(df !== null && df < 0 && !proxData){
+          alerts.push({ id: p.id+campo+"venc", type:"pts", level:"red", nome, msg:`${campo} vencida há ${Math.abs(df)} dias (${fmt(data)})`, sub:`${proxCampo} não foi registrado. Verifique o PTS.` });
+        }
+      });
+    });
+
+    // ── alertas de lista de espera ────────────────────────────────────────
+    patients.filter(p => p.status === "Lista de espera").forEach(p => {
+      const d = dias(p.dataEntrada);
+      if(d === null) return;
+      if(d > 90){
+        alerts.push({ id: p.id+"esp90", type:"espera", level:"red", nome: p.nome, msg:`${d} dias na lista de espera`, sub:`Paciente aguarda desde ${fmt(p.dataEntrada)}. Atenção urgente necessária.` });
+      } else if(d > 60){
+        alerts.push({ id: p.id+"esp60", type:"espera", level:"orange", nome: p.nome, msg:`${d} dias na lista de espera`, sub:`Paciente aguarda desde ${fmt(p.dataEntrada)}.` });
+      } else if(d > 30){
+        alerts.push({ id: p.id+"esp30", type:"espera", level:"yellow", nome: p.nome, msg:`${d} dias na lista de espera`, sub:`Paciente aguarda desde ${fmt(p.dataEntrada)}.` });
+      }
+    });
+
+    return alerts;
+  }, [patients, pts]);
+}
+
+function NotificationPanel({ alerts, onClose, onGoTo }){
+  const ptsList  = alerts.filter(a => a.type === "pts");
+  const waitList = alerts.filter(a => a.type === "espera");
+
+  const levelColor = {red:"red", orange:"orange", yellow:"yellow", blue:"blue"};
+
+  const Group = ({title, items}) => items.length === 0 ? null : <>
+    <div className="notif-group-title">{title}</div>
+    {items.map(a => (
+      <div key={a.id} className={"notif-item " + levelColor[a.level]}>
+        <div className={"notif-dot " + levelColor[a.level]}/>
+        <div style={{flex:1}}>
+          <div className="notif-title">{a.nome}</div>
+          <div className="notif-sub" style={{fontWeight:600, marginBottom:2}}>{a.msg}</div>
+          <div className="notif-sub">{a.sub}</div>
+        </div>
+      </div>
+    ))}
+  </>;
+
+  return <>
+    <div className="notif-overlay" onClick={onClose}/>
+    <div className="notif-panel">
+      <div className="notif-panel-header">
+        <h2>🔔 Alertas e notificações</h2>
+        <button className="icon-btn" onClick={onClose}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div className="notif-panel-body">
+        {alerts.length === 0
+          ? <div className="notif-empty">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <div style={{fontWeight:600, marginBottom:4}}>Nenhum alerta no momento</div>
+              <div style={{fontSize:12}}>Tudo em dia! Os alertas aparecem aqui quando houver reavaliações próximas ou pacientes há muito tempo em lista de espera.</div>
+            </div>
+          : <>
+              <div style={{background:'var(--panel2)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 14px', marginBottom:16, fontSize:13, color:'var(--muted)', display:'flex', gap:16}}>
+                <span><strong style={{color:'var(--danger)'}}>{alerts.filter(a=>a.level==="red").length}</strong> urgente{alerts.filter(a=>a.level==="red").length!==1?"s":""}</span>
+                <span><strong style={{color:'#f97316'}}>{alerts.filter(a=>a.level==="orange").length}</strong> atenção</span>
+                <span><strong style={{color:'var(--warn)'}}>{alerts.filter(a=>a.level==="yellow").length}</strong> aviso{alerts.filter(a=>a.level==="yellow").length!==1?"s":""}</span>
+              </div>
+              <Group title={`🗒️ PTS — Reavaliações (${ptsList.length})`} items={ptsList}/>
+              <Group title={`⏳ Lista de espera (${waitList.length})`} items={waitList}/>
+            </>
+        }
+      </div>
+      {alerts.length > 0 && <div style={{padding:'14px 20px', borderTop:'1px solid var(--border)', display:'flex', gap:10}}>
+        <button className="btn btn-secondary" style={{flex:1}} onClick={()=>{onGoTo("lista-espera"); onClose();}}>Ver lista de espera</button>
+        <button className="btn btn-secondary" style={{flex:1}} onClick={()=>{onGoTo("pts"); onClose();}}>Ver PTS</button>
+      </div>}
+    </div>
+  </>;
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+// ── Auth ─────────────────────────────────────────────────────────────────────
+const USERS_KEY = "auth:users:v2";
+
+async function hashPwd(pwd){
+  const data = new TextEncoder().encode(pwd + ":clinic-salt-v2");
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function useUsers(){
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try{
+      const r = await window.storage.get(USERS_KEY, true);
+      setUsers(r ? JSON.parse(r.value) : []);
+    }catch(e){ setUsers([]); }
+    setLoading(false);
+  }, []);
+
+  useEffect(()=>{ load(); }, [load]);
+
+  const saveAll = useCallback(async (list) => {
+    await window.storage.set(USERS_KEY, JSON.stringify(list), true);
+    setUsers(list);
+  }, []);
+
+  const addUser = useCallback(async (u) => {
+    const h = await hashPwd(u.password);
+    const next = [...users, { id: uid(), username: u.username.toLowerCase().trim(), displayName: u.displayName, role: u.role, pwdHash: h, createdAt: Date.now() }];
+    await saveAll(next);
+  }, [users, saveAll]);
+
+  const updateUser = useCallback(async (id, changes) => {
+    const next = users.map(u => u.id === id ? {...u, ...changes} : u);
+    await saveAll(next);
+  }, [users, saveAll]);
+
+  const resetPwd = useCallback(async (id, newPwd) => {
+    const h = await hashPwd(newPwd);
+    const next = users.map(u => u.id === id ? {...u, pwdHash: h} : u);
+    await saveAll(next);
+  }, [users, saveAll]);
+
+  const removeUser = useCallback(async (id) => {
+    await saveAll(users.filter(u => u.id !== id));
+  }, [users, saveAll]);
+
+  const verify = useCallback(async (username, pwd) => {
+    // Always read fresh from storage to avoid stale state
+    let list = users;
+    try{
+      const r = await window.storage.get(USERS_KEY, true);
+      if(r) list = JSON.parse(r.value);
+    }catch(e){}
+    const u = list.find(x => x.username === username.toLowerCase().trim());
+    if(!u) return null;
+    const h = await hashPwd(pwd);
+    return h === u.pwdHash ? u : null;
+  }, [users]);
+
+  return { users, loading, addUser, updateUser, resetPwd, removeUser, verify, reload: load };
+}
+
+// ── EyeToggle helper ──────────────────────────────────────────────────────────
+function EyeBtn({ show, toggle }){
+  return <button type="button" className="auth-eye" onClick={toggle}>
+    {show
+      ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+      : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    }
+  </button>;
+}
+
+// ── SetupAdmin ────────────────────────────────────────────────────────────────
+function SetupAdminScreen({ onDone }){
+  const [form, setForm] = useState({displayName:'', username:'', password:'', confirm:''});
+  const [err, setErr] = useState('');
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const set = k => e => setForm(f=>({...f,[k]:e.target.value}));
+
+  const submit = async () => {
+    setErr('');
+    if(!form.displayName || !form.username) return setErr('Preencha nome e usuário.');
+    if(form.username.includes(' ')) return setErr('O usuário não pode conter espaços.');
+    if(form.password.length < 6) return setErr('A senha deve ter no mínimo 6 caracteres.');
+    if(form.password !== form.confirm) return setErr('As senhas não coincidem.');
+    setLoading(true);
+    const h = await hashPwd(form.password);
+    const adminUser = { id: uid(), username: form.username.toLowerCase().trim(), displayName: form.displayName, role: 'admin', pwdHash: h, createdAt: Date.now() };
+    await window.storage.set(USERS_KEY, JSON.stringify([adminUser]), true);
+    onDone(adminUser);
+  };
+
+  return <div className="auth-bg">
+    <div className="auth-card">
+      <div className="auth-logo"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <h1>Configuração inicial</h1>
+      <p className="auth-sub">Crie a conta de administrador do sistema.</p>
+      {err && <div className="auth-error">{err}</div>}
+      <div className="auth-field"><label>Nome completo</label><input placeholder="Ex: Dra. Ana Lima" value={form.displayName} onChange={set('displayName')} autoFocus/></div>
+      <div className="auth-field"><label>Nome de usuário</label><input placeholder="Ex: ana.lima (sem espaços)" value={form.username} onChange={set('username')}/></div>
+      <div className="auth-field"><label>Senha (mín. 6 caracteres)</label>
+        <div className="auth-pwd-wrap"><input type={show?'text':'password'} placeholder="Senha segura..." value={form.password} onChange={set('password')}/><EyeBtn show={show} toggle={()=>setShow(s=>!s)}/></div>
+      </div>
+      <div className="auth-field"><label>Confirmar senha</label>
+        <div className="auth-pwd-wrap"><input type={show?'text':'password'} placeholder="Repita a senha..." value={form.confirm} onChange={set('confirm')} onKeyDown={e=>e.key==='Enter'&&submit()}/><EyeBtn show={show} toggle={()=>setShow(s=>!s)}/></div>
+      </div>
+      <button className="auth-btn" onClick={submit} disabled={loading}>{loading?'Criando...' :'Criar administrador e entrar →'}</button>
+      <div className="auth-hint">Esta conta terá acesso total ao sistema,<br/>incluindo gerenciamento de outros usuários.</div>
+    </div>
+  </div>;
+}
+
+// ── LoginScreen ───────────────────────────────────────────────────────────────
+function LoginScreen({ onLogin, usersHook }){
+  const [username, setUsername] = useState('');
+  const [pwd, setPwd] = useState('');
+  const [err, setErr] = useState('');
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    setErr('');
+    if(!username || !pwd) return setErr('Preencha usuário e senha.');
+    setLoading(true);
+    const user = await usersHook.verify(username, pwd);
+    if(user) onLogin(user);
+    else setErr('Usuário ou senha incorretos.');
+    setLoading(false);
+  };
+
+  return <div className="auth-bg">
+    <div className="auth-card">
+      <div className="auth-logo"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <h1>Sistema de Pacientes</h1>
+      <p className="auth-sub">Acesso restrito à equipe clínica</p>
+      {err && <div className="auth-error">{err}</div>}
+      <div className="auth-field"><label>Usuário</label><input placeholder="seu.usuario" value={username} onChange={e=>setUsername(e.target.value)} autoFocus autoComplete="username"/></div>
+      <div className="auth-field"><label>Senha</label>
+        <div className="auth-pwd-wrap">
+          <input type={show?'text':'password'} placeholder="Sua senha..." value={pwd} onChange={e=>setPwd(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} autoComplete="current-password"/>
+          <EyeBtn show={show} toggle={()=>setShow(s=>!s)}/>
+        </div>
+      </div>
+      <button className="auth-btn" onClick={submit} disabled={loading}>{loading?'Verificando...':'Entrar →'}</button>
+      <div className="auth-hint">Contate o administrador do sistema<br/>caso não tenha acesso.</div>
+    </div>
+  </div>;
+}
+
+// ── UsersTab (admin only) ─────────────────────────────────────────────────────
+function UsersTab({ usersHook, currentUser, notify }){
+  const {users, loading, addUser, updateUser, resetPwd, removeUser} = usersHook;
+  const [form, setForm] = useState({displayName:'', username:'', password:'', role:'user'});
+  const [resetForm, setResetForm] = useState(null); // {userId, pwd, confirm}
+  const [editId, setEditId] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [err, setErr] = useState('');
+  const [show, setShow] = useState(false);
+  const set = k => e => setForm(f=>({...f,[k]:e.target.value}));
+
+  const adminCount = users.filter(u=>u.role==='admin').length;
+
+  const submit = async () => {
+    setErr('');
+    if(!form.displayName || !form.username) return setErr('Preencha nome e usuário.');
+    if(form.username.includes(' ')) return setErr('Usuário não pode conter espaços.');
+    if(users.find(u=>u.username===form.username.toLowerCase().trim() && u.id!==editId)) return setErr('Este usuário já existe.');
+    if(!editId && form.password.length < 6) return setErr('Senha com mínimo 6 caracteres.');
+    if(!editId) await addUser(form);
+    else await updateUser(editId, {displayName:form.displayName, role:form.role});
+    notify(editId ? 'Usuário atualizado' : 'Usuário criado');
+    setForm({displayName:'', username:'', password:'', role:'user'}); setEditId(null); setErr('');
+  };
+
+  const startEdit = (u) => { setEditId(u.id); setForm({displayName:u.displayName, username:u.username, password:'', role:u.role}); setErr(''); };
+  const cancelEdit = () => { setEditId(null); setForm({displayName:'', username:'', password:'', role:'user'}); setErr(''); };
+
+  const doReset = async () => {
+    if(!resetForm) return;
+    if(resetForm.pwd.length < 6){ notify('Senha muito curta'); return; }
+    if(resetForm.pwd !== resetForm.confirm){ notify('Senhas não coincidem'); return; }
+    await resetPwd(resetForm.userId, resetForm.pwd);
+    notify('Senha redefinida'); setResetForm(null);
+  };
+
+  return <div>
+    <div className="card" style={{marginBottom:20}}>
+      <div className="section-title">{editId ? 'Editar usuário' : 'Novo usuário'}</div>
+      {err && <div className="auth-error" style={{marginBottom:14}}>{err}</div>}
+      <div className="grid grid-3">
+        <Field label="Nome completo" required><input value={form.displayName} onChange={set('displayName')} placeholder="Ex: Dra. Ana Lima"/></Field>
+        <Field label="Usuário (login)" required>
+          <input value={form.username} onChange={set('username')} placeholder="ex: ana.lima" disabled={!!editId} style={editId?{opacity:.6}:{}}/>
+        </Field>
+        <Field label="Perfil">
+          <select value={form.role} onChange={set('role')}>
+            <option value="user">Usuário</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </Field>
+      </div>
+      {!editId && <div className="grid grid-2" style={{marginTop:14}}>
+        <Field label="Senha (mín. 6 caracteres)" required>
+          <div className="auth-pwd-wrap"><input type={show?'text':'password'} value={form.password} onChange={set('password')} placeholder="Senha inicial..."/><EyeBtn show={show} toggle={()=>setShow(s=>!s)}/></div>
+        </Field>
+      </div>}
+      <div className="actions-row">
+        <button className="btn btn-primary" onClick={submit}>{editId?'Salvar alterações':'Criar usuário'}</button>
+        {editId && <button className="btn btn-secondary" onClick={cancelEdit}>Cancelar</button>}
+      </div>
+    </div>
+
+    <div className="card">
+      <div className="section-title">Usuários cadastrados ({users.length})</div>
+      {loading ? <div className="loading">Carregando...</div> :
+      users.length === 0 ? <div className="empty-state"><IconUsers/><div>Nenhum usuário.</div></div> :
+      <table>
+        <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Criado em</th><th></th></tr></thead>
+        <tbody>
+          {users.map(u=>(
+            <tr key={u.id} style={u.id===currentUser.id?{background:'#f8faff'}:{}}>
+              <td style={{fontWeight:600}}>{u.displayName} {u.id===currentUser.id&&<span style={{fontSize:12,color:'var(--muted)'}}>(você)</span>}</td>
+              <td><code>{u.username}</code></td>
+              <td><span className={"role-badge "+(u.role==='admin'?'admin':'user')}>{u.role==='admin'?'Admin':'Usuário'}</span></td>
+              <td style={{color:'var(--muted)',fontSize:13}}>{u.createdAt?new Date(u.createdAt).toLocaleDateString('pt-BR'):'—'}</td>
+              <td>
+                <div className="row-actions">
+                  <button className="icon-btn" title="Editar" onClick={()=>startEdit(u)}><IconEdit/></button>
+                  <button className="icon-btn" title="Redefinir senha" onClick={()=>setResetForm({userId:u.id, name:u.displayName, pwd:'', confirm:''})}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  </button>
+                  {u.id !== currentUser.id && !(u.role==='admin' && adminCount<=1) &&
+                    <button className="icon-btn danger" title="Excluir" onClick={()=>setConfirmDel(u)}><IconTrash/></button>}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>}
+    </div>
+
+    {/* Modal redefinir senha */}
+    {resetForm && <div className="modal-overlay" onClick={()=>setResetForm(null)}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h3>Redefinir senha</h3>
+        <p>Definindo nova senha para <strong>{resetForm.name}</strong>.</p>
+        <div className="auth-field" style={{marginBottom:12}}><label>Nova senha</label>
+          <div className="auth-pwd-wrap"><input type={show?'text':'password'} value={resetForm.pwd} onChange={e=>setResetForm(f=>({...f,pwd:e.target.value}))} placeholder="Nova senha..."/><EyeBtn show={show} toggle={()=>setShow(s=>!s)}/></div>
+        </div>
+        <div className="auth-field"><label>Confirmar</label>
+          <div className="auth-pwd-wrap"><input type={show?'text':'password'} value={resetForm.confirm} onChange={e=>setResetForm(f=>({...f,confirm:e.target.value}))} placeholder="Repita a senha..." onKeyDown={e=>e.key==='Enter'&&doReset()}/><EyeBtn show={show} toggle={()=>setShow(s=>!s)}/></div>
+        </div>
+        <div className="actions-row"><button className="btn btn-secondary" onClick={()=>setResetForm(null)}>Cancelar</button><button className="btn btn-primary" onClick={doReset}>Salvar nova senha</button></div>
+      </div>
+    </div>}
+
+    {confirmDel && <ConfirmModal title="Excluir usuário"
+      text={`Tem certeza que deseja excluir o usuário "${confirmDel.displayName}" (${confirmDel.username})? Ele perderá o acesso ao sistema.`}
+      onCancel={()=>setConfirmDel(null)}
+      onConfirm={async()=>{ await removeUser(confirmDel.id); notify('Usuário excluído'); setConfirmDel(null); }}/>}
+  </div>;
+}
+
+// ── MyAccountTab (change own password) ───────────────────────────────────────
+function MyAccountTab({ currentUser, usersHook, notify }){
+  const [f, setF] = useState({current:'', novo:'', confirm:''});
+  const [show, setShow] = useState(false);
+  const [err, setErr] = useState('');
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+
+  const submit = async () => {
+    setErr('');
+    if(!f.current) return setErr('Digite a senha atual.');
+    if(f.novo.length < 6) return setErr('Nova senha muito curta (mín. 6).');
+    if(f.novo !== f.confirm) return setErr('As senhas não coincidem.');
+    const ok = await usersHook.verify(currentUser.username, f.current);
+    if(!ok) return setErr('Senha atual incorreta.');
+    await usersHook.resetPwd(currentUser.id, f.novo);
+    notify('Senha alterada com sucesso!');
+    setF({current:'', novo:'', confirm:''});
+  };
+
+  return <div className="card" style={{maxWidth:460}}>
+    <div className="section-title">🔑 Minha conta — {currentUser.displayName}</div>
+    <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Usuário: <code>{currentUser.username}</code> · Perfil: <span className={"role-badge "+(currentUser.role==='admin'?'admin':'user')} style={{display:'inline-block'}}>{currentUser.role==='admin'?'Administrador':'Usuário'}</span></p>
+    <div className="section-title">Alterar minha senha</div>
+    {err && <div className="auth-error" style={{marginBottom:14}}>{err}</div>}
+    <div className="auth-field"><label>Senha atual</label>
+      <div className="auth-pwd-wrap"><input type={show?'text':'password'} value={f.current} onChange={set('current')} placeholder="Senha atual"/><EyeBtn show={show} toggle={()=>setShow(s=>!s)}/></div>
+    </div>
+    <div className="auth-field"><label>Nova senha</label>
+      <div className="auth-pwd-wrap"><input type={show?'text':'password'} value={f.novo} onChange={set('novo')} placeholder="Nova senha"/><EyeBtn show={show} toggle={()=>setShow(s=>!s)}/></div>
+    </div>
+    <div className="auth-field"><label>Confirmar nova senha</label>
+      <div className="auth-pwd-wrap"><input type={show?'text':'password'} value={f.confirm} onChange={set('confirm')} placeholder="Repita a nova senha" onKeyDown={e=>e.key==='Enter'&&submit()}/><EyeBtn show={show} toggle={()=>setShow(s=>!s)}/></div>
+    </div>
+    <div className="actions-row" style={{marginTop:16}}>
+      <button className="btn btn-primary" onClick={submit}>Alterar senha</button>
+    </div>
+  </div>;
+}
+
+
+function QuantitativoTab({ therapies, patients, professionals, onDarAlta }){
+  const [view, setView] = useState("terapia");
+  const [expanded, setExpanded] = useState(null);
+  const [fProf, setFProf] = useState("");
+  const [qPaciente, setQPaciente] = useState("");
+  const toggle = (key) => { setExpanded(e => e === key ? null : key); setQPaciente(""); };
+
+  const nameOf  = (id) => { const p = patients.find(x=>x.id===id); return p ? p.nome : "Desconhecido"; };
+  const patientOf = (id) => patients.find(x=>x.id===id);
+  const specOf  = (id) => { const p = professionals.find(x=>x.id===id); return p ? p.especialidade : "Não informada"; };
+  const profOf  = (id) => { const p = professionals.find(x=>x.id===id); return p ? p.nome : "Desconhecido"; };
+  const fmtNasc = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
+  const calcIdade = (nasc) => {
+    if(!nasc) return "—";
+    const diff = Date.now() - new Date(nasc+"T00:00").getTime();
+    return Math.floor(diff / (365.25*24*3600*1000)) + " anos";
+  };
+
+  const therapiesFiltradas = useMemo(() => fProf ? therapies.filter(t => t.profissionalId === fProf) : therapies, [therapies, fProf]);
+
+  const byTipo = useMemo(() => {
+    const map = {};
+    therapiesFiltradas.forEach(t => {
+      const k = t.tipo || "Não informado";
+      if(!map[k]) map[k] = { sessoes:[], pacientes: new Set() };
+      map[k].sessoes.push(t);
+      map[k].pacientes.add(t.pacienteId);
+    });
+    return Object.entries(map).map(([tipo, d]) => ({
+      tipo,
+      totalSessoes: d.sessoes.length,
+      totalPacientes: d.pacientes.size,
+      realizadas: d.sessoes.filter(s=>s.status==="Realizada").length,
+      pacientesIds: [...d.pacientes],
+      profissionaisIds: [...new Set(d.sessoes.map(s=>s.profissionalId))],
+    })).sort((a,b) => b.totalPacientes - a.totalPacientes);
+  }, [therapiesFiltradas]);
+
+  const byEsp = useMemo(() => {
+    const map = {};
+    therapiesFiltradas.forEach(t => {
+      const k = specOf(t.profissionalId);
+      if(!map[k]) map[k] = { sessoes:[], pacientes: new Set(), profs: new Set() };
+      map[k].sessoes.push(t);
+      map[k].pacientes.add(t.pacienteId);
+      map[k].profs.add(t.profissionalId);
+    });
+    return Object.entries(map).map(([esp, d]) => ({
+      esp,
+      totalSessoes: d.sessoes.length,
+      totalPacientes: d.pacientes.size,
+      totalProfs: d.profs.size,
+      realizadas: d.sessoes.filter(s=>s.status==="Realizada").length,
+      pacientesIds: [...d.pacientes],
+      profIds: [...d.profs],
+    })).sort((a,b) => b.totalPacientes - a.totalPacientes);
+  }, [therapiesFiltradas, professionals]);
+
+  const totalPacientesAtendidos = useMemo(() => new Set(therapiesFiltradas.map(t=>t.pacienteId)).size, [therapiesFiltradas]);
+  const totalRealizadas = therapiesFiltradas.filter(t=>t.status==="Realizada").length;
+  const maxPac = view==="terapia" ? Math.max(1,...byTipo.map(x=>x.totalPacientes)) : Math.max(1,...byEsp.map(x=>x.totalPacientes));
+  const COLORS = ["#3b6ff0","#6366f1","#0891b2","#16a34a","#d97706","#e03e3e","#7c3aed","#0f766e"];
+
+  return <div>
+    <div className="stat-grid">
+      <div className="stat-card blue"><div className="stat-num">{totalPacientesAtendidos}</div><div className="stat-label">Pacientes em terapia</div></div>
+      <div className="stat-card green"><div className="stat-num">{therapiesFiltradas.length}</div><div className="stat-label">Total de sessões</div></div>
+      <div className="stat-card warn"><div className="stat-num">{totalRealizadas}</div><div className="stat-label">Sessões realizadas</div></div>
+      <div className="stat-card blue" style={{borderColor:'#c7d2fe'}}><div className="stat-num" style={{color:'#6366f1'}}>{view==="terapia"?byTipo.length:byEsp.length}</div><div className="stat-label">{view==="terapia"?"Tipos de terapia":"Especialidades"} ativas</div></div>
+    </div>
+    <div className="card">
+      <div style={{display:'flex',gap:10,marginBottom:22,flexWrap:'wrap',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <button className={"btn "+(view==="terapia"?"btn-primary":"btn-secondary")} onClick={()=>{setView("terapia");setExpanded(null);}}>Por tipo de terapia</button>
+          <button className={"btn "+(view==="especialidade"?"btn-primary":"btn-secondary")} onClick={()=>{setView("especialidade");setExpanded(null);}}>Por especialidade</button>
+          <select style={{maxWidth:220}} value={fProf} onChange={e=>{setFProf(e.target.value); setExpanded(null);}}>
+            <option value="">Profissional (todos)</option>
+            {professionals.map(p => <option key={p.id} value={p.id}>{p.nome}{p.especialidade ? " · "+p.especialidade : ""}</option>)}
+          </select>
+        </div>
+        <span style={{fontSize:13,color:'var(--muted)'}}>Clique em uma linha para ver os pacientes</span>
+      </div>
+      {therapiesFiltradas.length === 0
+        ? <div className="empty-state"><IconUsers/><div>Nenhuma sessão registrada {fProf ? "para este profissional" : "ainda"}.</div></div>
+        : view==="terapia"
+          ? <table>
+              <thead><tr><th>#</th><th>Tipo de terapia</th><th>Pacientes</th><th>Sessões</th><th>Realizadas</th><th>Profissionais</th></tr></thead>
+              <tbody>
+                {byTipo.map((row, idx) => (
+                  <React.Fragment key={row.tipo}>
+                    <tr style={{cursor:'pointer'}} onClick={()=>toggle(row.tipo)}>
+                      <td style={{color:'var(--muted)',fontWeight:700,width:36}}>{idx+1}</td>
+                      <td><div style={{display:'flex',alignItems:'center',gap:10}}><div style={{width:10,height:10,borderRadius:99,background:COLORS[idx%COLORS.length],flexShrink:0}}/><span style={{fontWeight:600}}>{row.tipo}</span></div></td>
+                      <td><div style={{display:'flex',alignItems:'center',gap:10}}><div style={{width:120,height:8,background:'#e2e8f0',borderRadius:99,overflow:'hidden'}}><div style={{width:`${Math.round((row.totalPacientes/maxPac)*100)}%`,height:'100%',background:COLORS[idx%COLORS.length],borderRadius:99}}/></div><span style={{fontWeight:700,color:COLORS[idx%COLORS.length]}}>{row.totalPacientes}</span></div></td>
+                      <td style={{fontWeight:600}}>{row.totalSessoes}</td>
+                      <td><span style={{color:'var(--ok)',fontWeight:700}}>{row.realizadas}</span></td>
+                      <td>{row.profissionaisIds.length}</td>
+                    </tr>
+                    {expanded===row.tipo && <tr>
+                      <td colSpan={6} style={{background:'var(--panel2)',padding:'14px 18px'}}>
+                        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10}}>
+                          <div style={{fontSize:13,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.05em'}}>Pacientes em {row.tipo}</div>
+                          <input placeholder="Buscar criança por nome..." value={qPaciente} onChange={e=>setQPaciente(e.target.value)} style={{maxWidth:240}} onClick={e=>e.stopPropagation()}/>
+                        </div>
+                        <table style={{marginBottom:14}}>
+                          <thead><tr><th>#</th><th>Nome</th><th>Data de nascimento</th><th>Idade</th><th></th></tr></thead>
+                          <tbody>
+                            {row.pacientesIds
+                              .filter(id => { const pac = patientOf(id); return !qPaciente || (pac && pac.nome.toLowerCase().includes(qPaciente.toLowerCase())); })
+                              .map((id, i) => {
+                                const pac = patientOf(id);
+                                return <tr key={id}>
+                                  <td style={{color:'var(--muted)',fontWeight:700}}>{i+1}</td>
+                                  <td style={{fontWeight:600}}>{pac ? pac.nome : "Desconhecido"}</td>
+                                  <td>{fmtNasc(pac && pac.nascimento)}</td>
+                                  <td>{calcIdade(pac && pac.nascimento)}</td>
+                                  <td>
+                                    <button className="btn btn-secondary" style={{padding:'6px 12px', fontSize:12.5}} onClick={e=>{e.stopPropagation(); onDarAlta && onDarAlta(id);}}>
+                                      🎓 Dar alta
+                                    </button>
+                                  </td>
+                                </tr>;
+                              })}
+                            {row.pacientesIds.filter(id => { const pac = patientOf(id); return !qPaciente || (pac && pac.nome.toLowerCase().includes(qPaciente.toLowerCase())); }).length === 0 &&
+                              <tr><td colSpan={5} style={{textAlign:'center', color:'var(--muted)', padding:'14px'}}>Nenhuma criança encontrada para "{qPaciente}"</td></tr>
+                            }
+                          </tbody>
+                        </table>
+                        <div style={{fontSize:13,fontWeight:700,color:'var(--muted)',margin:'12px 0 8px',textTransform:'uppercase',letterSpacing:'.05em'}}>Profissionais</div>
+                        <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                          {row.profissionaisIds.map(id=><span key={id} style={{background:'var(--accent-soft)',border:'1px solid #c7d7fc',borderRadius:8,padding:'6px 12px',fontSize:13,color:'var(--accent)',fontWeight:500}}>{profOf(id)}</span>)}
+                        </div>
+                      </td>
+                    </tr>}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          : <table>
+              <thead><tr><th>#</th><th>Especialidade</th><th>Pacientes</th><th>Sessões</th><th>Realizadas</th><th>Profissionais</th></tr></thead>
+              <tbody>
+                {byEsp.map((row, idx) => (
+                  <React.Fragment key={row.esp}>
+                    <tr style={{cursor:'pointer'}} onClick={()=>toggle(row.esp)}>
+                      <td style={{color:'var(--muted)',fontWeight:700,width:36}}>{idx+1}</td>
+                      <td><div style={{display:'flex',alignItems:'center',gap:10}}><div style={{width:10,height:10,borderRadius:99,background:COLORS[idx%COLORS.length],flexShrink:0}}/><span style={{fontWeight:600}}>{row.esp}</span></div></td>
+                      <td><div style={{display:'flex',alignItems:'center',gap:10}}><div style={{width:120,height:8,background:'#e2e8f0',borderRadius:99,overflow:'hidden'}}><div style={{width:`${Math.round((row.totalPacientes/maxPac)*100)}%`,height:'100%',background:COLORS[idx%COLORS.length],borderRadius:99}}/></div><span style={{fontWeight:700,color:COLORS[idx%COLORS.length]}}>{row.totalPacientes}</span></div></td>
+                      <td style={{fontWeight:600}}>{row.totalSessoes}</td>
+                      <td><span style={{color:'var(--ok)',fontWeight:700}}>{row.realizadas}</span></td>
+                      <td>{row.totalProfs}</td>
+                    </tr>
+                    {expanded===row.esp && <tr>
+                      <td colSpan={6} style={{background:'var(--panel2)',padding:'14px 18px'}}>
+                        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10}}>
+                          <div style={{fontSize:13,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.05em'}}>Pacientes em {row.esp}</div>
+                          <input placeholder="Buscar criança por nome..." value={qPaciente} onChange={e=>setQPaciente(e.target.value)} style={{maxWidth:240}} onClick={e=>e.stopPropagation()}/>
+                        </div>
+                        <table style={{marginBottom:14}}>
+                          <thead><tr><th>#</th><th>Nome</th><th>Data de nascimento</th><th>Idade</th><th></th></tr></thead>
+                          <tbody>
+                            {row.pacientesIds
+                              .filter(id => { const pac = patientOf(id); return !qPaciente || (pac && pac.nome.toLowerCase().includes(qPaciente.toLowerCase())); })
+                              .map((id, i) => {
+                                const pac = patientOf(id);
+                                return <tr key={id}>
+                                  <td style={{color:'var(--muted)',fontWeight:700}}>{i+1}</td>
+                                  <td style={{fontWeight:600}}>{pac ? pac.nome : "Desconhecido"}</td>
+                                  <td>{fmtNasc(pac && pac.nascimento)}</td>
+                                  <td>{calcIdade(pac && pac.nascimento)}</td>
+                                  <td>
+                                    <button className="btn btn-secondary" style={{padding:'6px 12px', fontSize:12.5}} onClick={e=>{e.stopPropagation(); onDarAlta && onDarAlta(id);}}>
+                                      🎓 Dar alta
+                                    </button>
+                                  </td>
+                                </tr>;
+                              })}
+                            {row.pacientesIds.filter(id => { const pac = patientOf(id); return !qPaciente || (pac && pac.nome.toLowerCase().includes(qPaciente.toLowerCase())); }).length === 0 &&
+                              <tr><td colSpan={5} style={{textAlign:'center', color:'var(--muted)', padding:'14px'}}>Nenhuma criança encontrada para "{qPaciente}"</td></tr>
+                            }
+                          </tbody>
+                        </table>
+                        <div style={{fontSize:13,fontWeight:700,color:'var(--muted)',margin:'12px 0 8px',textTransform:'uppercase',letterSpacing:'.05em'}}>Profissionais</div>
+                        <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                          {row.profIds.map(id=><span key={id} style={{background:'var(--accent-soft)',border:'1px solid #c7d7fc',borderRadius:8,padding:'6px 12px',fontSize:13,color:'var(--accent)',fontWeight:500}}>{profOf(id)} · {specOf(id)}</span>)}
+                        </div>
+                      </td>
+                    </tr>}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+      }
+    </div>
+  </div>;
+}
+
+function ProfessionalCaseloadTab({ therapies, patients, professionals }){
+  const [q, setQ] = useState("");
+  const [fCategoria, setFCategoria] = useState("");
+  const [expanded, setExpanded] = useState(null);
+  const toggle = (id) => setExpanded(e => e === id ? null : id);
+
+  const nameOf = (id) => { const p = patients.find(x=>x.id===id); return p ? p.nome : "Desconhecido"; };
+  const statusOf = (id) => { const p = patients.find(x=>x.id===id); return p ? p.status : ""; };
+
+  const categorias = useMemo(() => Array.from(new Set((professionals||[]).map(p=>p.especialidade).filter(Boolean))), [professionals]);
+
+  const byProf = useMemo(() => {
+    const map = {};
+    (professionals||[]).forEach(prof => {
+      map[prof.id] = { prof, pacientes: new Set(), sessoes: 0, realizadas: 0 };
+    });
+    therapies.forEach(t => {
+      if(!map[t.profissionalId]){
+        map[t.profissionalId] = { prof: { id: t.profissionalId, nome: "Profissional removido", especialidade: "—", status: "—" }, pacientes: new Set(), sessoes: 0, realizadas: 0 };
+      }
+      map[t.profissionalId].pacientes.add(t.pacienteId);
+      map[t.profissionalId].sessoes++;
+      if(t.status === "Realizada") map[t.profissionalId].realizadas++;
+    });
+    return Object.values(map).map(d => ({
+      ...d,
+      pacientesIds: [...d.pacientes],
+      totalPacientes: d.pacientes.size
+    })).sort((a,b) => b.totalPacientes - a.totalPacientes);
+  }, [therapies, professionals]);
+
+  const filtered = useMemo(() => {
+    const t = q.toLowerCase();
+    return byProf.filter(d =>
+      (d.prof.nome||"").toLowerCase().includes(t) &&
+      (!fCategoria || d.prof.especialidade === fCategoria)
+    );
+  }, [byProf, q, fCategoria]);
+
+  const totalComPacientes = byProf.filter(d => d.totalPacientes > 0).length;
+  const totalPacientesUnicos = useMemo(() => new Set(therapies.map(t=>t.pacienteId)).size, [therapies]);
+
+  return <div>
+    <div className="stat-grid">
+      <div className="stat-card blue"><div className="stat-num">{professionals.length}</div><div className="stat-label">Profissionais cadastrados</div></div>
+      <div className="stat-card green"><div className="stat-num">{totalComPacientes}</div><div className="stat-label">Com crianças em atendimento</div></div>
+      <div className="stat-card warn"><div className="stat-num">{totalPacientesUnicos}</div><div className="stat-label">Crianças em terapia (total)</div></div>
+      <div className="stat-card blue" style={{borderColor:'#c7d2fe'}}><div className="stat-num" style={{color:'#6366f1'}}>{categorias.length}</div><div className="stat-label">Categorias/especialidades</div></div>
+    </div>
+
+    <div className="card">
+      <div className="toolbar" style={{marginBottom:18}}>
+        <input placeholder="Buscar profissional..." value={q} onChange={e=>setQ(e.target.value)} />
+        <select style={{maxWidth:220}} value={fCategoria} onChange={e=>setFCategoria(e.target.value)}>
+          <option value="">Categoria (todas)</option>
+          {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+
+      {filtered.length === 0
+        ? <div className="empty-state"><IconUsers/><div>Nenhum profissional encontrado.</div></div>
+        : <table>
+            <thead><tr><th>#</th><th>Profissional</th><th>Categoria</th><th>Crianças em terapia</th><th>Sessões</th><th>Realizadas</th></tr></thead>
+            <tbody>
+              {filtered.map((d, i) => (
+                <React.Fragment key={d.prof.id}>
+                  <tr style={{cursor: d.totalPacientes>0 ? 'pointer' : 'default'}} onClick={()=> d.totalPacientes>0 && toggle(d.prof.id)}>
+                    <td style={{color:'var(--muted)', fontWeight:700}}>{i+1}</td>
+                    <td style={{fontWeight:600}}>
+                      {d.prof.nome}
+                      {d.totalPacientes>0 && <span style={{marginLeft:8, fontSize:11, color:'var(--muted)'}}>{expanded===d.prof.id ? "▲" : "▼"}</span>}
+                    </td>
+                    <td><span className="badge" style={{background:'var(--accent-soft)', color:'var(--accent)'}}>{d.prof.especialidade || "Não informada"}</span></td>
+                    <td style={{fontWeight:800, color:'#6366f1'}}>{d.totalPacientes}</td>
+                    <td>{d.sessoes}</td>
+                    <td>{d.realizadas}</td>
+                  </tr>
+                  {expanded === d.prof.id && d.totalPacientes > 0 && (
+                    <tr>
+                      <td colSpan={6} style={{background:'var(--panel2)'}}>
+                        <div style={{display:'flex', flexWrap:'wrap', gap:8, padding:'10px 4px'}}>
+                          {d.pacientesIds.map(pid => (
+                            <span key={pid} style={{
+                              display:'inline-flex', alignItems:'center', gap:6, padding:'5px 12px', borderRadius:20,
+                              background:'var(--panel)', border:'1px solid var(--border)', fontSize:13, fontWeight:600
+                            }}>
+                              {nameOf(pid)}
+                              {statusOf(pid) && <StatusBadge status={statusOf(pid)}/>}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+      }
+    </div>
+  </div>;
+}
+
+function DashboardTab({ patients, professionals, therapies, pts, alerts, onGoTo }){
+  const ativos    = patients.filter(p=>(p.terapiasNecessarias||[]).some(t=>t.status==="Ativo")).length;
+  const espera    = patients.filter(p=>(p.terapiasNecessarias||[]).length === 0).length;
+  const pausados  = patients.filter(p=>p.status==="Em pausa").length;
+  const inativos  = patients.filter(p=>p.status==="Inativo").length;
+
+  const hoje = new Date().toISOString().slice(0,10);
+  const semanaAtras = new Date(Date.now()-7*86400000).toISOString().slice(0,10);
+  const sessoesHoje    = therapies.filter(t=>t.data===hoje).length;
+  const sessoesSemana  = therapies.filter(t=>t.data>=semanaAtras).length;
+  const realizadas     = therapies.filter(t=>t.status==="Realizada").length;
+  const agendadas      = therapies.filter(t=>t.status==="Agendada").length;
+
+  const urgentes = alerts.filter(a=>a.tipo==="urgente");
+  const atencoes = alerts.filter(a=>a.tipo==="atencao");
+
+  const ativosPorTerapia = useMemo(() => {
+    const map = {};
+    patients.forEach(p => {
+      (p.terapiasNecessarias||[]).forEach(t => {
+        if(t.status === "Ativo") map[t.tipo] = (map[t.tipo]||0) + 1;
+      });
+    });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  }, [patients]);
+  const esperaPorTerapia = useMemo(() => {
+    const map = {};
+    patients.forEach(p => {
+      (p.terapiasNecessarias||[]).forEach(t => {
+        if(t.status === "Lista de espera") map[t.tipo] = (map[t.tipo]||0) + 1;
+      });
+    });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  }, [patients]);
+  const posTriagemPorTerapia = useMemo(() => {
+    const map = {};
+    patients.forEach(p => {
+      (p.terapiasNecessarias||[]).forEach(t => {
+        if(t.status === "Ativo" && t.posTriagem) map[t.tipo] = (map[t.tipo]||0) + 1;
+      });
+    });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  }, [patients]);
+  const totalPosTriagem = useMemo(() => posTriagemPorTerapia.reduce((s,[,n])=>s+n, 0), [posTriagemPorTerapia]);
+  const THERAPY_COLORS = [
+    {bg:"#ebf0fe", color:"var(--accent)"},
+    {bg:"#f0fdf4", color:"var(--ok)"},
+    {bg:"#f0f0ff", color:"#6366f1"},
+    {bg:"#fffbeb", color:"var(--warn)"},
+    {bg:"#ecfeff", color:"#0891b2"},
+    {bg:"#fdf4ff", color:"#a21caf"},
+  ];
+  const WAIT_COLORS = [
+    {bg:"#fffbeb", color:"var(--warn)"},
+    {bg:"#fef2f2", color:"var(--danger)"},
+    {bg:"#fff7ed", color:"#c2410c"},
+    {bg:"#fefce8", color:"#a16207"},
+  ];
+  const PT_COLORS = [
+    {bg:"#faf5ff", color:"#7c3aed"},
+    {bg:"#eff6ff", color:"#2563eb"},
+    {bg:"#f0fdfa", color:"#0d9488"},
+    {bg:"#fdf2f8", color:"#db2777"},
+  ];
+
+  const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
+
+  const DCard = ({icon,bg,num,label,color,onClick}) => (
+    <div className="dash-card" style={{cursor:onClick?"pointer":"default"}} onClick={onClick}>
+      <div className="dash-card-icon" style={{background:bg}}>{icon}</div>
+      <div>
+        <div className="dash-card-num" style={{color}}>{num}</div>
+        <div className="dash-card-label">{label}</div>
+      </div>
+    </div>
+  );
+
+  return <div>
+    {/* Pacientes */}
+    <div className="section-title">Pacientes</div>
+    <div className="dash-grid">
+      <DCard icon="👥" bg="#ebf0fe" num={patients.length} label="Total de pacientes" color="var(--accent)" onClick={()=>onGoTo("pacientes")}/>
+      <DCard icon="✅" bg="#f0fdf4" num={ativos} label="Ativos" color="var(--ok)" onClick={()=>onGoTo("pacientes")}/>
+      <DCard icon="⏳" bg="#f0f0ff" num={espera} label="Lista de espera" color="#6366f1" onClick={()=>onGoTo("lista-espera")}/>
+      <DCard icon="⏸️" bg="#fffbeb" num={pausados} label="Em pausa" color="var(--warn)" onClick={()=>onGoTo("pacientes")}/>
+    </div>
+
+    {ativosPorTerapia.length > 0 && <>
+      <div className="section-title">Crianças ativas por terapia</div>
+      <div className="dash-grid">
+        {ativosPorTerapia.map(([tipo, n], i) => {
+          const c = THERAPY_COLORS[i % THERAPY_COLORS.length];
+          return <DCard key={tipo} icon="🧩" bg={c.bg} num={n} label={tipo} color={c.color} onClick={()=>onGoTo("pacientes")}/>;
+        })}
+      </div>
+    </>}
+
+    {esperaPorTerapia.length > 0 && <>
+      <div className="section-title">Crianças em espera por terapia</div>
+      <div className="dash-grid">
+        {esperaPorTerapia.map(([tipo, n], i) => {
+          const c = WAIT_COLORS[i % WAIT_COLORS.length];
+          return <DCard key={tipo} icon="⏳" bg={c.bg} num={n} label={tipo} color={c.color} onClick={()=>onGoTo("lista-espera")}/>;
+        })}
+      </div>
+    </>}
+
+    {posTriagemPorTerapia.length > 0 && <>
+      <div className="section-title">Terapias ativadas pós triagem <span style={{textTransform:'none', fontWeight:500, letterSpacing:0}}>· total: {totalPosTriagem}</span></div>
+      <div className="dash-grid">
+        {posTriagemPorTerapia.map(([tipo, n], i) => {
+          const c = PT_COLORS[i % PT_COLORS.length];
+          return <DCard key={tipo} icon="🩺" bg={c.bg} num={n} label={tipo} color={c.color} onClick={()=>onGoTo("pacientes")}/>;
+        })}
+      </div>
+    </>}
+
+    <div className="dash-row">
+      {/* Terapias */}
+      <div className="card">
+        <div className="section-title">Sessões</div>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16}}>
+          {[
+            {num:sessoesHoje,    label:"Hoje",              color:"var(--accent)"},
+            {num:sessoesSemana,  label:"Últimos 7 dias",    color:"#6366f1"},
+            {num:realizadas,     label:"Realizadas (total)",color:"var(--ok)"},
+            {num:agendadas,      label:"Agendadas",         color:"var(--warn)"},
+          ].map(x=>(
+            <div key={x.label} style={{background:'var(--panel2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px'}}>
+              <div style={{fontSize:26, fontWeight:800, color:x.color}}>{x.num}</div>
+              <div style={{fontSize:12, color:'var(--muted)', marginTop:2}}>{x.label}</div>
+            </div>
+          ))}
+        </div>
+        <button className="btn btn-secondary" style={{width:'100%'}} onClick={()=>onGoTo("terapias")}>Ver todas as sessões →</button>
+      </div>
+
+      {/* Profissionais */}
+      <div className="card">
+        <div className="section-title">Equipe</div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:40, fontWeight:800, color:'var(--accent)', lineHeight:1}}>{professionals.length}</div>
+          <div style={{fontSize:13, color:'var(--muted)', marginTop:4}}>Profissionais cadastrados</div>
+        </div>
+        <div style={{display:'flex', flexWrap:'wrap', gap:8, marginBottom:16}}>
+          {Object.entries(professionals.reduce((acc,p)=>{acc[p.especialidade||"Não informada"]=(acc[p.especialidade||"Não informada"]||0)+1;return acc;},{}))
+            .sort((a,b)=>b[1]-a[1]).slice(0,6)
+            .map(([esp,n])=>(
+              <span key={esp} style={{background:'var(--accent-soft)',border:'1px solid #c7d7fc',borderRadius:20,padding:'4px 10px',fontSize:12,color:'var(--accent)',fontWeight:600}}>
+                {esp} · {n}
+              </span>
+            ))}
+        </div>
+        <button className="btn btn-secondary" style={{width:'100%'}} onClick={()=>onGoTo("profissionais")}>Ver profissionais →</button>
+      </div>
+    </div>
+
+    {/* Alertas */}
+    {alerts.length > 0 && <div className="card">
+      <div className="section-title">⚠️ Alertas pendentes ({alerts.length})</div>
+      <div style={{display:'flex', flexDirection:'column', gap:8}}>
+        {alerts.slice(0,5).map(a=>(
+          <div key={a.id} className={"notif-item " + (a.tipo==="urgente"?"red":a.tipo==="atencao"?"orange":"yellow")}
+            style={{cursor:'pointer'}} onClick={()=>onGoTo(a.aba)}>
+            <div className={"notif-dot " + (a.tipo==="urgente"?"red":a.tipo==="atencao"?"orange":"yellow")}/>
+            <div style={{flex:1}}>
+              <div className="notif-title">{a.titulo}</div>
+              <div className="notif-sub">{a.desc}</div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{color:'var(--muted)',flexShrink:0}}><path d="m9 18 6-6-6-6"/></svg>
+          </div>
+        ))}
+        {alerts.length > 5 && <div style={{textAlign:'center', fontSize:13, color:'var(--muted)', paddingTop:4}}>+ {alerts.length-5} alerta(s) adicionais</div>}
+      </div>
+    </div>}
+
+    {alerts.length === 0 && <div className="card" style={{textAlign:'center', padding:'28px 20px'}}>
+      <div style={{fontSize:36, marginBottom:10}}>✅</div>
+      <div style={{fontWeight:700, marginBottom:4}}>Tudo em dia!</div>
+      <div style={{fontSize:13, color:'var(--muted)'}}>Nenhum alerta pendente de PTS ou lista de espera.</div>
+    </div>}
+  </div>;
+}
+
+function App(){
+  // ── Auth state ───────────────────────────────────────────────────────────
+  const [authState, setAuthState] = useState("loading"); // loading | setup | login | ok
+  const [currentUser, setCurrentUser] = useState(null);
+  const usersHook = useUsers();
+
+  useEffect(()=>{
+    if(usersHook.loading) return;
+    if(authState !== "loading") return;
+    setAuthState(usersHook.users.length === 0 ? "setup" : "login");
+  }, [usersHook.loading, usersHook.users]);
+
+  const handleLogin = (user) => { setCurrentUser(user); setAuthState("ok"); };
+  const handleLogout = () => { setCurrentUser(null); setAuthState("login"); setTab("dashboard"); };
+  const handleAdminCreated = (user) => { setCurrentUser(user); setAuthState("ok"); };
+
+  // ── App state ────────────────────────────────────────────────────────────
+  const [tab, setTab] = useState("dashboard");
+  const [toast, setToast] = useState("");
+  const [editingPatient, setEditingPatient] = useState(null);
+  const [ptsPreselect, setPtsPreselect] = useState(null);
+  const goToDarAlta = (patientId) => { setPtsPreselect(patientId); setTab("pts"); };
+  const [therapyPreselect, setTherapyPreselect] = useState(null);
+  const goToAtendimento = (patient, tipo) => {
+    setTherapyPreselect({ pacienteId: patient.id, tipo: tipo || "" });
+    setTab("terapias");
+    notify(`Registre o atendimento de ${patient.nome} para confirmar`);
+  };
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [showNotif, setShowNotif] = useState(false);
+
+  const pat = useCollection("patients:");
+  const pro = useCollection("professionals:");
+  const ther = useCollection("therapies:");
+  const pts = useCollection("pts:");
+  const filterCfg = useFilterConfig();
+  const tiposTerapia = useTiposTerapia();
+  const alerts = useAlerts(pat.items, pts.items);
+
+  const notify = (msg) => { setToast(msg); setTimeout(()=>setToast(""), 2600); };
+  const goTo = (t) => { setTab(t); setEditingPatient(null); setShowNotif(false); };
+
+  // ── Auth gates ───────────────────────────────────────────────────────────
+  if(authState === "loading") return (
+    <div style={{minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"linear-gradient(135deg,#1e3a8a,#3b6ff0)"}}>
+      <div style={{color:"#fff", fontSize:16, fontWeight:600}}>Carregando...</div>
+    </div>
+  );
+  if(authState === "setup") return <SetupAdminScreen onDone={handleAdminCreated}/>;
+  if(authState === "login") return <LoginScreen onLogin={handleLogin} usersHook={usersHook}/>;
+
+  const isAdmin = currentUser?.role === "admin";
+  const initials = (n) => n ? n.split(" ").slice(0,2).map(w=>w[0]).join("").toUpperCase() : "?";
+
+  const tabs = [
+    {id:"dashboard", label:"Dashboard", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>},
+    {id:"cadastro", label: editingPatient ? "Editando cadastro" : "Novo cadastro", icon:<IconPlus/>},
+    {id:"pacientes", label:"Pacientes", icon:<IconSearch/>},
+    {id:"lista-espera", label:`Espera (${pat.items.filter(p=>p.status==="Lista de espera" || (p.terapiasNecessarias||[]).some(t=>t.status==="Lista de espera")).length})`, icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
+    {id:"quantitativo", label:"Por terapia", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>},
+    {id:"por-profissional", label:"Por profissional", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>},
+    {id:"profissionais", label:"Profissionais", icon:<IconUsers/>},
+    {id:"terapias", label:"Terapias", icon:<IconUsers/>},
+    {id:"pts", label:"PTS", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>},
+    {id:"filtros", label:"Filtros", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>},
+    {id:"exportar", label:"Exportar", icon:<IconUsers/>},
+    ...(isAdmin ? [{id:"usuarios", label:"Usuários", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}] : []),
+    {id:"minha-conta", label:"Minha conta", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>},
+  ];
+
+  return <div>
+    <div className="header">
+      <div className="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="1.6"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div style={{flex:1}}>
+        <h1>Sistema de cadastro e monitoramento de pacientes</h1>
+        <p>Dados compartilhados com a equipe</p>
+      </div>
+
+      {/* Notification bell */}
+      <button className="notif-bell" onClick={()=>setShowNotif(v=>!v)} title="Alertas e notificações">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        {alerts.length > 0 && <span className="badge-dot">{alerts.length > 99 ? "99+" : alerts.length}</span>}
+      </button>
+
+      {/* User chip */}
+      <div className="user-chip" style={{cursor:"pointer"}} onClick={()=>goTo("minha-conta")} title="Minha conta">
+        <div className="user-chip-av">{initials(currentUser?.displayName)}</div>
+        <div>
+          <div style={{lineHeight:1.2}}>{currentUser?.displayName}</div>
+          <div><span className={"role-badge "+(isAdmin?"admin":"user")} style={{padding:"1px 6px",fontSize:"10px"}}>{isAdmin?"Admin":"Usuário"}</span></div>
+        </div>
+      </div>
+
+      {/* Logout */}
+      <button className="btn btn-secondary" style={{padding:"8px 14px", fontSize:13}} onClick={handleLogout} title="Sair">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight:6,verticalAlign:"middle"}}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sair
+      </button>
+    </div>
+
+    {showNotif && <NotificationPanel alerts={alerts} onClose={()=>setShowNotif(false)} onGoTo={goTo}/>}
+
+    <div className="tabs">
+      {tabs.map(t => (
+        <button key={t.id} className={"tab"+(tab===t.id?" active":"")}
+          onClick={()=>{ setTab(t.id); if(t.id!=="cadastro") setEditingPatient(null); }}>
+          {t.icon}{t.label}
+        </button>
+      ))}
+    </div>
+
+    {tab==="dashboard" && <DashboardTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} alerts={alerts} onGoTo={goTo}/>}
+    {tab==="cadastro" && <PatientForm patients={pat.items} save={pat.save} notify={notify} editTarget={editingPatient} onDone={()=>{ setEditingPatient(null); setTab("pacientes"); }} onRequestDelete={(p)=>setConfirmDel(p)} tiposTerapia={tiposTerapia.tipos}/>}
+    {tab==="pacientes" && <PatientsList patients={pat.items} loading={pat.loading} filterConfigs={filterCfg.configs} therapies={ther.items} pts={pts.items} professionals={pro.items} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} onDelete={(p)=>setConfirmDel(p)}/>}
+    {tab==="lista-espera" && <WaitingListTab patients={pat.items} loading={pat.loading} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} professionals={pro.items} tiposTerapia={tiposTerapia.tipos} savePatient={pat.save} saveTherapy={ther.save} notify={notify} onColocarAtendimento={goToAtendimento}/>}
+    {tab==="quantitativo" && <QuantitativoTab therapies={ther.items} patients={pat.items} professionals={pro.items} onDarAlta={goToDarAlta}/>}
+    {tab==="por-profissional" && <ProfessionalCaseloadTab therapies={ther.items} patients={pat.items} professionals={pro.items}/>}
+    {tab==="profissionais" && <ProfessionalsTab professionals={pro.items} loading={pro.loading} save={pro.save} remove={pro.remove} notify={notify} filterConfigs={filterCfg.configs}/>}
+    {tab==="terapias" && <TherapiesTab therapies={ther.items} patients={pat.items} professionals={pro.items} loading={ther.loading} save={ther.save} remove={ther.remove} notify={notify} filterConfigs={filterCfg.configs} tiposTerapia={tiposTerapia.tipos} preselect={therapyPreselect} onConsumePreselect={()=>setTherapyPreselect(null)} savePatient={pat.save}/>}
+    {tab==="pts" && <PTSTab pts={pts.items} patients={pat.items} loading={pts.loading} save={pts.save} remove={pts.remove} notify={notify} preselectPatientId={ptsPreselect} onConsumePreselect={()=>setPtsPreselect(null)}/>}
+    {tab==="filtros" && <FiltrosTab configs={filterCfg.configs} loading={filterCfg.loading} add={filterCfg.add} remove={filterCfg.remove} move={filterCfg.move} notify={notify} tiposTerapia={tiposTerapia}/>}
+    {tab==="exportar" && <ExportTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} notify={notify}/>}
+    {tab==="usuarios" && isAdmin && <UsersTab usersHook={usersHook} currentUser={currentUser} notify={notify}/>}
+    {tab==="minha-conta" && <MyAccountTab currentUser={currentUser} usersHook={usersHook} notify={notify}/>}
+
+    {confirmDel && <ConfirmModal title="Excluir paciente"
+      text={`Tem certeza que deseja excluir o cadastro de "${confirmDel.nome}"? Esta ação não pode ser desfeita.`}
+      onCancel={()=>setConfirmDel(null)}
+      onConfirm={async()=>{ await pat.remove(confirmDel.id); notify("Paciente excluído"); setConfirmDel(null); setEditingPatient(null); setTab("pacientes"); }}/>}
+
+    <Toast message={toast}/>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
+</script>
