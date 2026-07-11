@@ -135,6 +135,7 @@
   .badge-inativo{ background:var(--danger-soft); color:var(--danger); border:1px solid #fecaca; }
   .badge-pausa{ background:var(--warn-soft); color:var(--warn); border:1px solid #fde68a; }
   .badge-espera{ background:#f0f0ff; color:#6366f1; border:1px solid #c7d2fe; }
+  .badge-alta{ background:#eef2ff; color:#4f46e5; border:1px solid #c7d2fe; }
 
   .row-actions{ display:flex; gap:6px; }
   .icon-btn{ width:32px; height:32px; border-radius:7px; border:1.5px solid var(--border); background:var(--panel); color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.15s; }
@@ -597,6 +598,7 @@ function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDele
                 <select style={{maxWidth:190}} value={t.status} onChange={e=>setTerapiaStatus(t.tipo, e.target.value)}>
                   <option value="Ativo">Ativo</option>
                   <option value="Lista de espera">Lista de espera</option>
+                  <option value="Alta">Alta</option>
                   <option value="Finalizado">Finalizado</option>
                 </select>
                 {t.status === "Ativo" && (
@@ -636,7 +638,7 @@ function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDele
       <Field label="Data de entrada na clínica"><input type="date" value={form.dataEntrada} onChange={set('dataEntrada')} /></Field>
       <Field label="Status">
         <select value={form.status} onChange={set('status')}>
-          <option>Ativo</option><option>Em pausa</option><option>Lista de espera</option><option>Inativo</option>
+          <option>Ativo</option><option>Em pausa</option><option>Lista de espera</option><option>Alta</option><option>Inativo</option>
         </select>
       </Field>
     </div>
@@ -656,6 +658,7 @@ function StatusBadge({ status }){
   const cls = status === "Ativo" ? "badge-ativo"
     : status === "Em pausa" ? "badge-pausa"
     : status === "Lista de espera" ? "badge-espera"
+    : status === "Alta" ? "badge-alta"
     : "badge-inativo";
   return <span className={"badge " + cls}>{status}</span>;
 }
@@ -850,7 +853,7 @@ function PatientProfile({ patient, therapies, pts, professionals, onClose, onEdi
                       <span style={{color:'var(--muted)', marginLeft:8, fontSize:13}}>{profName(t.profissionalId)}</span>
                     </div>
                     <span style={{fontSize:13, color:'var(--muted)'}}>{fmt(t.data)}{t.hora ? " · "+t.hora : ""}</span>
-                    <StatusBadge status={t.status==="Realizada"?"Ativo":t.status==="Cancelada"||t.status==="Faltou"?"Inativo":"Em pausa"}/>
+                    <StatusBadge status={t.status==="Realizada"?"Ativo":t.status==="Alta"?"Alta":t.status==="Cancelada"||t.status==="Faltou"?"Inativo":"Em pausa"}/>
                   </div>
                 ))}
                 {myTherapies.length > 10 && <div style={{fontSize:12, color:'var(--muted)', textAlign:'center', marginTop:10}}>+ {myTherapies.length - 10} sessões anteriores</div>}
@@ -916,7 +919,7 @@ function PatientsList({ patients, loading, onEdit, onDelete, filterConfigs, ther
       <input placeholder="Buscar por nome, responsável ou diagnóstico..." value={q} onChange={e=>setQ(e.target.value)} />
       <select style={{maxWidth:160}} value={fStatus} onChange={e=>setFStatus(e.target.value)}>
         <option value="">Status (todos)</option>
-        <option>Ativo</option><option>Em pausa</option><option>Lista de espera</option><option>Inativo</option>
+        <option>Ativo</option><option>Em pausa</option><option>Lista de espera</option><option>Alta</option><option>Inativo</option>
       </select>
       <select style={{maxWidth:200}} value={fCid} onChange={e=>setFCid(e.target.value)}>
         <option value="">Diagnóstico CID (todos)</option>
@@ -1112,6 +1115,20 @@ function TherapiesTab({ therapies, patients, professionals, loading, save, remov
       }
     }
 
+    // Se o profissional deu Alta nessa terapia, registra a alta na terapia específica do paciente
+    // e, se não sobrar nenhuma terapia ativa/em espera, dá alta geral ao paciente
+    if(form.status === "Alta" && savePatient){
+      const patient = patients.find(x => x.id === form.pacienteId);
+      if(patient){
+        const necessarias = patient.terapiasNecessarias || [];
+        let novaLista = necessarias.map(t => t.tipo===form.tipo ? {...t, status:"Alta"} : t);
+        if(!novaLista.some(t=>t.tipo===form.tipo)) novaLista = [...novaLista, {tipo: form.tipo, status:"Alta"}];
+        const semTerapiaPendente = novaLista.length > 0 && novaLista.every(t => t.status === "Alta");
+        await savePatient({ ...patient, status: semTerapiaPendente ? "Alta" : patient.status, terapiasNecessarias: novaLista });
+        if(semTerapiaPendente) notify(`${patient.nome} recebeu alta de todas as terapias — status atualizado para Alta`);
+      }
+    }
+
     notify(editing ? "Sessão atualizada" : "Sessão registrada");
     setForm(blankTherapy()); setEditing(null); setHighlight(false);
   };
@@ -1163,7 +1180,7 @@ function TherapiesTab({ therapies, patients, professionals, loading, save, remov
         <Field label="Duração (min)"><input type="number" value={form.duracao} onChange={set('duracao')} /></Field>
         <Field label="Status">
           <select value={form.status} onChange={set('status')} style={highlight ? highlightStyle : {}}>
-            <option>Agendada</option><option>Realizada</option><option>Cancelada</option><option>Faltou</option>
+            <option>Agendada</option><option>Realizada</option><option>Alta</option><option>Cancelada</option><option>Faltou</option>
           </select>
         </Field>
         <Field label="Observações"><input value={form.obs} onChange={set('obs')} placeholder="Notas da sessão" style={highlight && !form.obs ? highlightStyle : {}}/></Field>
@@ -1190,7 +1207,7 @@ function TherapiesTab({ therapies, patients, professionals, loading, save, remov
         </select>
         <select style={{maxWidth:160}} value={fStatus} onChange={e=>setFStatus(e.target.value)}>
           <option value="">Status (todos)</option>
-          <option>Agendada</option><option>Realizada</option><option>Cancelada</option><option>Faltou</option>
+          <option>Agendada</option><option>Realizada</option><option>Alta</option><option>Cancelada</option><option>Faltou</option>
         </select>
         <DynamicFilters mine={dynF.mine} vals={dynF.vals} setVal={dynF.setVal} data={therapies} clear={dynF.clear} hasAny={dynF.hasAny} />
         {(hasFilters || dynF.hasAny) && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={clearAll}>Limpar filtros</button>}
@@ -1207,7 +1224,7 @@ function TherapiesTab({ therapies, patients, professionals, loading, save, remov
               <td>{nameOf(professionals, t.profissionalId)}</td>
               <td>{t.tipo}</td>
               <td>{t.data ? new Date(t.data+"T00:00").toLocaleDateString('pt-BR') : "—"}{t.hora ? " · "+t.hora : ""}</td>
-              <td><StatusBadge status={t.status==="Realizada"?"Ativo":t.status==="Cancelada"||t.status==="Faltou"?"Inativo":"Em pausa"}/></td>
+              <td><StatusBadge status={t.status==="Realizada"?"Ativo":t.status==="Alta"?"Alta":t.status==="Cancelada"||t.status==="Faltou"?"Inativo":"Em pausa"}/></td>
               <td><div className="row-actions">
                 <button className="icon-btn" onClick={()=>{setEditing(t); setForm(t);}}><IconEdit/></button>
                 <button className="icon-btn danger" onClick={()=>setConfirmDel(t)}><IconTrash/></button>
@@ -2756,6 +2773,7 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta }){
 function ProfessionalCaseloadTab({ therapies, patients, professionals }){
   const [q, setQ] = useState("");
   const [fCategoria, setFCategoria] = useState("");
+  const [fProfissional, setFProfissional] = useState("");
   const [expanded, setExpanded] = useState(null);
   const toggle = (id) => setExpanded(e => e === id ? null : id);
 
@@ -2788,9 +2806,13 @@ function ProfessionalCaseloadTab({ therapies, patients, professionals }){
     const t = q.toLowerCase();
     return byProf.filter(d =>
       (d.prof.nome||"").toLowerCase().includes(t) &&
-      (!fCategoria || d.prof.especialidade === fCategoria)
+      (!fCategoria || d.prof.especialidade === fCategoria) &&
+      (!fProfissional || d.prof.id === fProfissional)
     );
-  }, [byProf, q, fCategoria]);
+  }, [byProf, q, fCategoria, fProfissional]);
+
+  const hasFilters = q || fCategoria || fProfissional;
+  const clearAll = () => { setQ(""); setFCategoria(""); setFProfissional(""); };
 
   const totalComPacientes = byProf.filter(d => d.totalPacientes > 0).length;
   const totalPacientesUnicos = useMemo(() => new Set(therapies.map(t=>t.pacienteId)).size, [therapies]);
@@ -2806,10 +2828,15 @@ function ProfessionalCaseloadTab({ therapies, patients, professionals }){
     <div className="card">
       <div className="toolbar" style={{marginBottom:18}}>
         <input placeholder="Buscar profissional..." value={q} onChange={e=>setQ(e.target.value)} />
+        <select style={{maxWidth:220}} value={fProfissional} onChange={e=>setFProfissional(e.target.value)}>
+          <option value="">Profissional (todos)</option>
+          {(professionals||[]).slice().sort((a,b)=>a.nome.localeCompare(b.nome)).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+        </select>
         <select style={{maxWidth:220}} value={fCategoria} onChange={e=>setFCategoria(e.target.value)}>
           <option value="">Categoria (todas)</option>
           {categorias.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+        {hasFilters && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={clearAll}>Limpar filtros</button>}
       </div>
 
       {filtered.length === 0
@@ -3178,3 +3205,4 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
+
