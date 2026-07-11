@@ -1780,7 +1780,7 @@ const blankPTS = () => ({
   dataAlta:"", tipoAlta:"", obs:""
 });
 
-function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatientId, onConsumePreselect }){
+function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatientId, onConsumePreselect, savePatient }){
   const [form, setForm] = useState(blankPTS());
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
@@ -1810,6 +1810,21 @@ function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatient
       notify("Já existe um PTS para este paciente. Edite o existente."); return;
     }
     await save(form);
+
+    // Mesma lógica usada na aba Terapias: se o profissional deu alta pelo PTS
+    // (preencheu Data da Alta), registra a alta em todas as terapias do paciente
+    // e, sem nenhuma terapia pendente, o status geral do paciente vira Alta.
+    if(form.dataAlta && savePatient){
+      const patient = patients.find(x => x.id === form.pacienteId);
+      if(patient){
+        const necessarias = patient.terapiasNecessarias || [];
+        const novaLista = necessarias.map(t => ({ ...t, status:"Alta" }));
+        const semTerapiaPendente = novaLista.length > 0 && novaLista.every(t => t.status === "Alta");
+        await savePatient({ ...patient, status: semTerapiaPendente ? "Alta" : patient.status, terapiasNecessarias: novaLista });
+        if(semTerapiaPendente) notify(`${patient.nome} recebeu alta do PTS — status do paciente atualizado para Alta`);
+      }
+    }
+
     notify(editing ? "PTS atualizado" : "PTS criado");
     setForm(blankPTS()); setEditing(null);
   };
@@ -2574,7 +2589,7 @@ function MyAccountTab({ currentUser, usersHook, notify }){
 }
 
 
-function QuantitativoTab({ therapies, patients, professionals, onDarAlta }){
+function QuantitativoTab({ therapies, patients, professionals, onDarAlta, savePatient, notify }){
   const [view, setView] = useState("terapia");
   const [expanded, setExpanded] = useState(null);
   const [fProf, setFProf] = useState("");
@@ -2593,6 +2608,30 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta }){
   };
 
   const therapiesFiltradas = useMemo(() => fProf ? therapies.filter(t => t.profissionalId === fProf) : therapies, [therapies, fProf]);
+
+  // Dá alta diretamente em um ou mais tipos de terapia do paciente (mesma lógica da aba Terapias):
+  // marca esses tipos como "Alta" no cadastro e, se não sobrar nenhuma terapia pendente, o status geral do paciente vira Alta.
+  const darAlta = async (patientId, tipos) => {
+    if(!savePatient || !tipos || tipos.length === 0) return;
+    const patient = patients.find(x => x.id === patientId);
+    if(!patient) return;
+    const necessarias = patient.terapiasNecessarias || [];
+    let novaLista = necessarias.map(t => tipos.includes(t.tipo) ? { ...t, status:"Alta" } : t);
+    tipos.forEach(tp => { if(!novaLista.some(t=>t.tipo===tp)) novaLista.push({ tipo:tp, status:"Alta" }); });
+    const semTerapiaPendente = novaLista.length > 0 && novaLista.every(t => t.status === "Alta");
+    await savePatient({ ...patient, status: semTerapiaPendente ? "Alta" : patient.status, terapiasNecessarias: novaLista });
+    if(notify){
+      notify(semTerapiaPendente
+        ? `${patient.nome} recebeu alta de todas as terapias — status atualizado para Alta`
+        : `Alta registrada para ${patient.nome} em ${tipos.join(", ")}`);
+    }
+  };
+
+  const statusTerapiaDoPaciente = (patientId, tipo) => {
+    const p = patientOf(patientId);
+    const t = p && (p.terapiasNecessarias||[]).find(x => x.tipo === tipo);
+    return t ? t.status : null;
+  };
 
   const byTipo = useMemo(() => {
     const map = {};
@@ -2691,9 +2730,11 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta }){
                                   <td>{fmtNasc(pac && pac.nascimento)}</td>
                                   <td>{calcIdade(pac && pac.nascimento)}</td>
                                   <td>
-                                    <button className="btn btn-secondary" style={{padding:'6px 12px', fontSize:12.5}} onClick={e=>{e.stopPropagation(); onDarAlta && onDarAlta(id);}}>
-                                      🎓 Dar alta
-                                    </button>
+                                    {statusTerapiaDoPaciente(id, row.tipo) === "Alta"
+                                      ? <StatusBadge status="Alta"/>
+                                      : <button className="btn btn-secondary" style={{padding:'6px 12px', fontSize:12.5}} onClick={e=>{e.stopPropagation(); darAlta(id, [row.tipo]);}}>
+                                          🎓 Dar alta
+                                        </button>}
                                   </td>
                                 </tr>;
                               })}
@@ -2744,9 +2785,15 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta }){
                                   <td>{fmtNasc(pac && pac.nascimento)}</td>
                                   <td>{calcIdade(pac && pac.nascimento)}</td>
                                   <td>
-                                    <button className="btn btn-secondary" style={{padding:'6px 12px', fontSize:12.5}} onClick={e=>{e.stopPropagation(); onDarAlta && onDarAlta(id);}}>
-                                      🎓 Dar alta
-                                    </button>
+                                    {(() => {
+                                      const tiposDoPacienteNaEsp = [...new Set(therapiesFiltradas.filter(t => t.pacienteId===id && specOf(t.profissionalId)===row.esp).map(t=>t.tipo))];
+                                      const todasAlta = tiposDoPacienteNaEsp.length>0 && tiposDoPacienteNaEsp.every(tp => statusTerapiaDoPaciente(id, tp) === "Alta");
+                                      return todasAlta
+                                        ? <StatusBadge status="Alta"/>
+                                        : <button className="btn btn-secondary" style={{padding:'6px 12px', fontSize:12.5}} onClick={e=>{e.stopPropagation(); darAlta(id, tiposDoPacienteNaEsp);}}>
+                                            🎓 Dar alta
+                                          </button>;
+                                    })()}
                                   </td>
                                 </tr>;
                               })}
@@ -3184,11 +3231,11 @@ function App(){
     {tab==="cadastro" && <PatientForm patients={pat.items} save={pat.save} notify={notify} editTarget={editingPatient} onDone={()=>{ setEditingPatient(null); setTab("pacientes"); }} onRequestDelete={(p)=>setConfirmDel(p)} tiposTerapia={tiposTerapia.tipos}/>}
     {tab==="pacientes" && <PatientsList patients={pat.items} loading={pat.loading} filterConfigs={filterCfg.configs} therapies={ther.items} pts={pts.items} professionals={pro.items} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} onDelete={(p)=>setConfirmDel(p)}/>}
     {tab==="lista-espera" && <WaitingListTab patients={pat.items} loading={pat.loading} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} professionals={pro.items} tiposTerapia={tiposTerapia.tipos} savePatient={pat.save} saveTherapy={ther.save} notify={notify} onColocarAtendimento={goToAtendimento}/>}
-    {tab==="quantitativo" && <QuantitativoTab therapies={ther.items} patients={pat.items} professionals={pro.items} onDarAlta={goToDarAlta}/>}
+    {tab==="quantitativo" && <QuantitativoTab therapies={ther.items} patients={pat.items} professionals={pro.items} onDarAlta={goToDarAlta} savePatient={pat.save} notify={notify}/>}
     {tab==="por-profissional" && <ProfessionalCaseloadTab therapies={ther.items} patients={pat.items} professionals={pro.items}/>}
     {tab==="profissionais" && <ProfessionalsTab professionals={pro.items} loading={pro.loading} save={pro.save} remove={pro.remove} notify={notify} filterConfigs={filterCfg.configs}/>}
     {tab==="terapias" && <TherapiesTab therapies={ther.items} patients={pat.items} professionals={pro.items} loading={ther.loading} save={ther.save} remove={ther.remove} notify={notify} filterConfigs={filterCfg.configs} tiposTerapia={tiposTerapia.tipos} preselect={therapyPreselect} onConsumePreselect={()=>setTherapyPreselect(null)} savePatient={pat.save}/>}
-    {tab==="pts" && <PTSTab pts={pts.items} patients={pat.items} loading={pts.loading} save={pts.save} remove={pts.remove} notify={notify} preselectPatientId={ptsPreselect} onConsumePreselect={()=>setPtsPreselect(null)}/>}
+    {tab==="pts" && <PTSTab pts={pts.items} patients={pat.items} loading={pts.loading} save={pts.save} remove={pts.remove} notify={notify} preselectPatientId={ptsPreselect} onConsumePreselect={()=>setPtsPreselect(null)} savePatient={pat.save}/>}
     {tab==="filtros" && <FiltrosTab configs={filterCfg.configs} loading={filterCfg.loading} add={filterCfg.add} remove={filterCfg.remove} move={filterCfg.move} notify={notify} tiposTerapia={tiposTerapia}/>}
     {tab==="exportar" && <ExportTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} notify={notify}/>}
     {tab==="usuarios" && isAdmin && <UsersTab usersHook={usersHook} currentUser={currentUser} notify={notify}/>}
