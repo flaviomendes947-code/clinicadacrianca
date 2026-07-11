@@ -4,7 +4,49 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <div id="app-root"></div>
+<div id="db-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#fef2f2;color:#991b1b;border-bottom:1px solid #fecaca;padding:10px 16px;font:500 13px -apple-system,'Segoe UI',sans-serif;text-align:center;"></div>
+<div id="fatal-toast" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#e03e3e;color:#fff;padding:11px 18px;border-radius:9px;font:500 13.5px -apple-system,'Segoe UI',sans-serif;max-width:90vw;box-shadow:0 4px 16px rgba(0,0,0,.2);"></div>
+<script>
+  // Conexão com o banco de dados (Supabase). A "anon key" abaixo é pública por
+  // natureza (é feita para rodar no navegador) — a proteção dos dados fica a
+  // cargo das políticas de RLS configuradas no projeto Supabase.
+  var SUPABASE_URL = 'https://wmisffoeqvhzemgouhwn.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndtaXNmZm9lcXZoemVtZ291aHduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3Nzc4MDMsImV4cCI6MjA5OTM1MzgwM30.micqvVohyqpk4q15fakxwruj1_5xHSExGY2M5njgIvk';
+  window.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  window.showFatal = function(msg){
+    var el = document.getElementById('fatal-toast');
+    if(!el) return;
+    el.textContent = 'Erro: ' + msg;
+    el.style.display = 'block';
+    clearTimeout(window.__fatalTimer);
+    window.__fatalTimer = setTimeout(function(){ el.style.display = 'none'; }, 6000);
+  };
+  window.addEventListener('error', function(e){
+    window.showFatal(e.message || 'erro desconhecido');
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e.reason;
+    window.showFatal(r && r.message ? r.message : String(r));
+  });
+
+  // Checagem rápida de conectividade com o banco, para avisar cedo se algo
+  // estiver mal configurado (URL/chave erradas, tabelas não criadas, etc.)
+  (async function(){
+    try{
+      var res = await window.sb.from('usuarios').select('id', { count:'exact', head:true });
+      if(res.error) throw res.error;
+    }catch(e){
+      var el = document.getElementById('db-banner');
+      if(el){
+        el.textContent = '⚠ Não foi possível conectar ao banco de dados: ' + (e && e.message ? e.message : e) + '. Verifique se o script SQL foi executado no Supabase.';
+        el.style.display = 'block';
+      }
+    }
+  })();
+</script>
 <style>
   :root{
     --bg:#f0f4f9;
@@ -273,42 +315,58 @@ const ESPECIALIDADES = ["Psicólogo(a)","Terapeuta Ocupacional","Fonoaudiólogo(
 const DEFAULT_TERAPIAS = ["ABA","Fonoaudiologia","Terapia Ocupacional","Psicoterapia","Psicopedagogia","Fisioterapia","Musicoterapia","Outro"];
 
 function useTiposTerapia(){
-  const KEY = "tiposTerapia:v1";
   const [tipos, setTipos] = useState(DEFAULT_TERAPIAS);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try{
-      const r = await window.storage.get(KEY, true);
-      if(r) setTipos(JSON.parse(r.value));
-    }catch(e){}
+      const { data, error } = await sb.from('tipos_terapia').select('*').order('ordem', { ascending:true });
+      if(error) throw error;
+      setTipos((data||[]).map(r=>r.nome));
+    }catch(e){
+      console.error('Erro ao carregar tipos de terapia', e);
+      window.showFatal('Não foi possível carregar os tipos de terapia: ' + (e.message||e));
+    }
+    setLoading(false);
   }, []);
 
   useEffect(()=>{ load(); }, [load]);
 
-  const saveAll = useCallback(async (list) => {
-    await window.storage.set(KEY, JSON.stringify(list), true);
-    setTipos(list);
-  }, []);
-
   const add = useCallback(async (nome) => {
-    const next = [...tipos, nome];
-    await saveAll(next);
-  }, [tipos, saveAll]);
+    try{
+      const { data } = await sb.from('tipos_terapia').select('ordem').order('ordem', { ascending:false }).limit(1);
+      const nextOrdem = (data && data[0] ? data[0].ordem : 0) + 1;
+      const { error } = await sb.from('tipos_terapia').insert({ nome, ordem: nextOrdem });
+      if(error) throw error;
+      await load();
+    }catch(e){ window.showFatal('Não foi possível adicionar o tipo de terapia: ' + (e.message||e)); }
+  }, [load]);
 
   const remove = useCallback(async (nome) => {
-    await saveAll(tipos.filter(t => t !== nome));
-  }, [tipos, saveAll]);
+    try{
+      const { error } = await sb.from('tipos_terapia').delete().eq('nome', nome);
+      if(error) throw error;
+      await load();
+    }catch(e){ window.showFatal('Não foi possível remover o tipo de terapia: ' + (e.message||e)); }
+  }, [load]);
 
   const move = useCallback(async (nome, dir) => {
-    const list = [...tipos];
-    const i = list.indexOf(nome);
-    const j = i + dir;
-    if(j < 0 || j >= list.length) return;
-    [list[i], list[j]] = [list[j], list[i]];
-    await saveAll(list);
-  }, [tipos, saveAll]);
+    try{
+      const { data, error } = await sb.from('tipos_terapia').select('*').order('ordem', { ascending:true });
+      if(error) throw error;
+      const list = data||[];
+      const i = list.findIndex(t=>t.nome===nome);
+      const j = i + dir;
+      if(i<0 || j<0 || j>=list.length) return;
+      const a = list[i], b = list[j];
+      await sb.from('tipos_terapia').update({ ordem:b.ordem }).eq('id', a.id);
+      await sb.from('tipos_terapia').update({ ordem:a.ordem }).eq('id', b.id);
+      await load();
+    }catch(e){ window.showFatal('Não foi possível reordenar: ' + (e.message||e)); }
+  }, [load]);
 
-  return { tipos, add, remove, move };
+  return { tipos, loading, add, remove, move };
 }
 
 const blankPatient = () => ({
@@ -321,46 +379,96 @@ const blankPatient = () => ({
 const blankProfessional = () => ({ id:null, nome:"", especialidade:"", registro:"", telefone:"", email:"", status:"Ativo" });
 const blankTherapy = () => ({ id:null, pacienteId:"", profissionalId:"", tipo:"", data:"", hora:"", duracao:"50", status:"Agendada", obs:"", posTriagem:false });
 
-function useCollection(prefix){
+// ── Conversores camelCase (app) <-> snake_case (Supabase) por tabela ──────────
+const ROW_MAPPERS = {
+  pacientes: {
+    toRow: (p) => ({
+      id:p.id, nome:p.nome, cpf:p.cpf||null, nascimento:p.nascimento||null, sexo:p.sexo||null,
+      mae:p.mae||null, cid:p.cid||null, nivel_tea:p.nivelTea||null, comorbidades:p.comorbidades||null,
+      responsavel:p.responsavel||null, parentesco:p.parentesco||null, telefone:p.telefone||null,
+      endereco:p.endereco||null, unidade:p.unidade||null, data_entrada:p.dataEntrada||null,
+      status:p.status||'Ativo', obs:p.obs||null, terapias_necessarias:p.terapiasNecessarias||[]
+    }),
+    fromRow: (r) => ({
+      id:r.id, nome:r.nome||'', cpf:r.cpf||'', nascimento:r.nascimento||'', sexo:r.sexo||'',
+      mae:r.mae||'', cid:r.cid||'', nivelTea:r.nivel_tea||'', comorbidades:r.comorbidades||'',
+      responsavel:r.responsavel||'', parentesco:r.parentesco||'', telefone:r.telefone||'',
+      endereco:r.endereco||'', unidade:r.unidade||'', dataEntrada:r.data_entrada||'',
+      status:r.status||'Ativo', obs:r.obs||'', terapiasNecessarias:r.terapias_necessarias||[],
+      createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now()
+    })
+  },
+  profissionais: {
+    toRow: (p) => ({ id:p.id, nome:p.nome, especialidade:p.especialidade||null, registro:p.registro||null, telefone:p.telefone||null, email:p.email||null, status:p.status||'Ativo' }),
+    fromRow: (r) => ({ id:r.id, nome:r.nome||'', especialidade:r.especialidade||'', registro:r.registro||'', telefone:r.telefone||'', email:r.email||'', status:r.status||'Ativo', createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now() })
+  },
+  sessoes_terapia: {
+    toRow: (t) => ({ id:t.id, paciente_id:t.pacienteId||null, profissional_id:t.profissionalId||null, tipo:t.tipo||null, data:t.data||null, hora:t.hora||null, duracao: t.duracao ? parseInt(t.duracao,10) : 50, status:t.status||'Agendada', obs:t.obs||null, pos_triagem: !!t.posTriagem }),
+    fromRow: (r) => ({ id:r.id, pacienteId:r.paciente_id||'', profissionalId:r.profissional_id||'', tipo:r.tipo||'', data:r.data||'', hora: r.hora ? String(r.hora).slice(0,5) : '', duracao: r.duracao!=null ? String(r.duracao) : '50', status:r.status||'Agendada', obs:r.obs||'', posTriagem: !!r.pos_triagem, createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now() })
+  },
+  pts: {
+    toRow: (p) => ({ id:p.id, paciente_id:p.pacienteId||null, renovacao1:p.renovacao1||null, renovacao2:p.renovacao2||null, renovacao3:p.renovacao3||null, data_alta:p.dataAlta||null, tipo_alta:p.tipoAlta||null, obs:p.obs||null }),
+    fromRow: (r) => ({ id:r.id, pacienteId:r.paciente_id||'', renovacao1:r.renovacao1||'', renovacao2:r.renovacao2||'', renovacao3:r.renovacao3||'', dataAlta:r.data_alta||'', tipoAlta:r.tipo_alta||'', obs:r.obs||'', createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now() })
+  }
+};
+
+function useCollection(table){
+  const { toRow, fromRow } = ROW_MAPPERS[table];
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try{
-      const listRes = await window.storage.list(prefix, true);
-      const keys = (listRes && listRes.keys) ? listRes.keys : [];
-      const results = await Promise.all(keys.map(async k => {
-        try{
-          const r = await window.storage.get(k, true);
-          return r ? JSON.parse(r.value) : null;
-        }catch(e){ return null; }
-      }));
-      setItems(results.filter(Boolean).sort((a,b)=> (b.createdAt||0)-(a.createdAt||0)));
+      const { data, error } = await sb.from(table).select('*').order('created_at', { ascending:false });
+      if(error) throw error;
+      setItems((data||[]).map(fromRow));
     }catch(e){
+      console.error('Erro ao carregar '+table, e);
+      window.showFatal('Não foi possível carregar dados: ' + (e.message||e));
       setItems([]);
     }
     setLoading(false);
-  }, [prefix]);
+  }, [table]);
 
   useEffect(() => { load(); }, [load]);
 
   const save = useCallback(async (record) => {
+    const isNew = !record.id;
     const rec = { ...record };
     if(!rec.id) rec.id = uid();
-    if(!rec.createdAt) rec.createdAt = Date.now();
-    await window.storage.set(prefix + rec.id, JSON.stringify(rec), true);
-    await load();
-    return rec;
-  }, [prefix, load]);
+    const row = toRow(rec);
+    try{
+      let result;
+      if(isNew){
+        result = await sb.from(table).insert(row).select().single();
+      } else {
+        result = await sb.from(table).update(row).eq('id', rec.id).select().single();
+      }
+      if(result.error) throw result.error;
+      await load();
+      return fromRow(result.data);
+    }catch(e){
+      console.error('Erro ao salvar em '+table, e);
+      window.showFatal('Não foi possível salvar: ' + (e.message||e));
+      throw e;
+    }
+  }, [table, load]);
 
   const remove = useCallback(async (id) => {
-    await window.storage.delete(prefix + id, true);
-    await load();
-  }, [prefix, load]);
+    try{
+      const { error } = await sb.from(table).delete().eq('id', id);
+      if(error) throw error;
+      await load();
+    }catch(e){
+      console.error('Erro ao excluir em '+table, e);
+      window.showFatal('Não foi possível excluir: ' + (e.message||e));
+    }
+  }, [table, load]);
 
   return { items, loading, save, remove, reload: load };
 }
+
 
 function Field({ label, required, children }){
   return <div className="field">
@@ -1395,43 +1503,57 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
 
 // ── Hook: configuração de filtros personalizados ──────────────────────────────
 function useFilterConfig(){
-  const KEY = "filterConfig:v1";
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try{
-      const r = await window.storage.get(KEY, true);
-      setConfigs(r ? JSON.parse(r.value) : []);
-    }catch(e){ setConfigs([]); }
+      const { data, error } = await sb.from('filtros_config').select('*').order('ordem', { ascending:true });
+      if(error) throw error;
+      setConfigs((data||[]).map(r=>({ id:r.id, section:r.section, field:r.field, label:r.label })));
+    }catch(e){
+      console.error('Erro ao carregar filtros', e);
+      window.showFatal('Não foi possível carregar os filtros: ' + (e.message||e));
+      setConfigs([]);
+    }
     setLoading(false);
   }, []);
 
   useEffect(()=>{ load(); }, [load]);
 
-  const saveAll = useCallback(async (list) => {
-    await window.storage.set(KEY, JSON.stringify(list), true);
-    setConfigs(list);
-  }, []);
-
   const add = useCallback(async (cfg) => {
-    const next = [...configs, {...cfg, id: uid()}];
-    await saveAll(next);
-  }, [configs, saveAll]);
+    try{
+      const { data } = await sb.from('filtros_config').select('ordem').order('ordem', { ascending:false }).limit(1);
+      const nextOrdem = (data && data[0] ? data[0].ordem : 0) + 1;
+      const { error } = await sb.from('filtros_config').insert({ section:cfg.section, field:cfg.field, label:cfg.label, ordem: nextOrdem });
+      if(error) throw error;
+      await load();
+    }catch(e){ window.showFatal('Não foi possível adicionar o filtro: ' + (e.message||e)); }
+  }, [load]);
 
   const remove = useCallback(async (id) => {
-    await saveAll(configs.filter(c => c.id !== id));
-  }, [configs, saveAll]);
+    try{
+      const { error } = await sb.from('filtros_config').delete().eq('id', id);
+      if(error) throw error;
+      await load();
+    }catch(e){ window.showFatal('Não foi possível remover o filtro: ' + (e.message||e)); }
+  }, [load]);
 
   const move = useCallback(async (id, dir) => {
-    const list = [...configs];
-    const i = list.findIndex(c => c.id === id);
-    const j = i + dir;
-    if(j < 0 || j >= list.length) return;
-    [list[i], list[j]] = [list[j], list[i]];
-    await saveAll(list);
-  }, [configs, saveAll]);
+    try{
+      const { data, error } = await sb.from('filtros_config').select('*').order('ordem', { ascending:true });
+      if(error) throw error;
+      const list = data||[];
+      const i = list.findIndex(c => c.id === id);
+      const j = i + dir;
+      if(i<0 || j<0 || j>=list.length) return;
+      const a = list[i], b = list[j];
+      await sb.from('filtros_config').update({ ordem:b.ordem }).eq('id', a.id);
+      await sb.from('filtros_config').update({ ordem:a.ordem }).eq('id', b.id);
+      await load();
+    }catch(e){ window.showFatal('Não foi possível reordenar: ' + (e.message||e)); }
+  }, [load]);
 
   return { configs, loading, add, remove, move };
 }
@@ -2092,9 +2214,25 @@ function NotificationPanel({ alerts, onClose, onGoTo }){
 const USERS_KEY = "auth:users:v2";
 
 async function hashPwd(pwd){
-  const data = new TextEncoder().encode(pwd + ":clinic-salt-v2");
-  const buf = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  const raw = pwd + ":clinic-salt-v2";
+  try{
+    if(!(window.crypto && window.crypto.subtle)) throw new Error('crypto.subtle indisponível neste contexto');
+    const data = new TextEncoder().encode(raw);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }catch(e){
+    // Fallback simples (não criptográfico) para contextos sem Web Crypto API,
+    // como alguns navegadores ao abrir o arquivo diretamente (file://) sem HTTPS.
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for(let i=0;i<raw.length;i++){
+      const ch = raw.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1>>>16), 2246822507) ^ Math.imul(h2 ^ (h2>>>13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2>>>16), 2246822507) ^ Math.imul(h1 ^ (h1>>>13), 3266489909);
+    return 'fb_' + (h1>>>0).toString(16).padStart(8,'0') + (h2>>>0).toString(16).padStart(8,'0');
+  }
 }
 
 function useUsers(){
@@ -2104,52 +2242,63 @@ function useUsers(){
   const load = useCallback(async () => {
     setLoading(true);
     try{
-      const r = await window.storage.get(USERS_KEY, true);
-      setUsers(r ? JSON.parse(r.value) : []);
-    }catch(e){ setUsers([]); }
+      const { data, error } = await sb.from('usuarios').select('*').order('created_at', { ascending:true });
+      if(error) throw error;
+      setUsers((data||[]).map(r => ({ id:r.id, username:r.username, displayName:r.display_name, role:r.role, pwdHash:r.pwd_hash, createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now() })));
+    }catch(e){
+      console.error('Erro ao carregar usuários', e);
+      window.showFatal('Não foi possível carregar os usuários: ' + (e.message||e));
+      setUsers([]);
+    }
     setLoading(false);
   }, []);
 
   useEffect(()=>{ load(); }, [load]);
 
-  const saveAll = useCallback(async (list) => {
-    await window.storage.set(USERS_KEY, JSON.stringify(list), true);
-    setUsers(list);
-  }, []);
-
   const addUser = useCallback(async (u) => {
     const h = await hashPwd(u.password);
-    const next = [...users, { id: uid(), username: u.username.toLowerCase().trim(), displayName: u.displayName, role: u.role, pwdHash: h, createdAt: Date.now() }];
-    await saveAll(next);
-  }, [users, saveAll]);
+    const row = { id: uid(), username: u.username.toLowerCase().trim(), display_name: u.displayName, role: u.role, pwd_hash: h };
+    const { error } = await sb.from('usuarios').insert(row);
+    if(error) throw error;
+    await load();
+  }, [load]);
 
   const updateUser = useCallback(async (id, changes) => {
-    const next = users.map(u => u.id === id ? {...u, ...changes} : u);
-    await saveAll(next);
-  }, [users, saveAll]);
+    const row = {};
+    if(changes.displayName !== undefined) row.display_name = changes.displayName;
+    if(changes.role !== undefined) row.role = changes.role;
+    if(changes.username !== undefined) row.username = changes.username.toLowerCase().trim();
+    const { error } = await sb.from('usuarios').update(row).eq('id', id);
+    if(error) throw error;
+    await load();
+  }, [load]);
 
   const resetPwd = useCallback(async (id, newPwd) => {
     const h = await hashPwd(newPwd);
-    const next = users.map(u => u.id === id ? {...u, pwdHash: h} : u);
-    await saveAll(next);
-  }, [users, saveAll]);
+    const { error } = await sb.from('usuarios').update({ pwd_hash: h }).eq('id', id);
+    if(error) throw error;
+    await load();
+  }, [load]);
 
   const removeUser = useCallback(async (id) => {
-    await saveAll(users.filter(u => u.id !== id));
-  }, [users, saveAll]);
+    const { error } = await sb.from('usuarios').delete().eq('id', id);
+    if(error) throw error;
+    await load();
+  }, [load]);
 
   const verify = useCallback(async (username, pwd) => {
-    // Always read fresh from storage to avoid stale state
-    let list = users;
     try{
-      const r = await window.storage.get(USERS_KEY, true);
-      if(r) list = JSON.parse(r.value);
-    }catch(e){}
-    const u = list.find(x => x.username === username.toLowerCase().trim());
-    if(!u) return null;
-    const h = await hashPwd(pwd);
-    return h === u.pwdHash ? u : null;
-  }, [users]);
+      const { data, error } = await sb.from('usuarios').select('*').eq('username', username.toLowerCase().trim()).maybeSingle();
+      if(error) throw error;
+      if(!data) return null;
+      const h = await hashPwd(pwd);
+      if(h !== data.pwd_hash) return null;
+      return { id:data.id, username:data.username, displayName:data.display_name, role:data.role };
+    }catch(e){
+      console.error('Erro ao verificar login', e);
+      return null;
+    }
+  }, []);
 
   return { users, loading, addUser, updateUser, resetPwd, removeUser, verify, reload: load };
 }
@@ -2179,10 +2328,17 @@ function SetupAdminScreen({ onDone }){
     if(form.password.length < 6) return setErr('A senha deve ter no mínimo 6 caracteres.');
     if(form.password !== form.confirm) return setErr('As senhas não coincidem.');
     setLoading(true);
-    const h = await hashPwd(form.password);
-    const adminUser = { id: uid(), username: form.username.toLowerCase().trim(), displayName: form.displayName, role: 'admin', pwdHash: h, createdAt: Date.now() };
-    await window.storage.set(USERS_KEY, JSON.stringify([adminUser]), true);
-    onDone(adminUser);
+    try{
+      const h = await hashPwd(form.password);
+      const row = { id: uid(), username: form.username.toLowerCase().trim(), display_name: form.displayName, role: 'admin', pwd_hash: h };
+      const { error } = await sb.from('usuarios').insert(row);
+      if(error) throw error;
+      onDone({ id: row.id, username: row.username, displayName: row.display_name, role: 'admin' });
+    }catch(e){
+      setErr('Não foi possível criar o administrador: ' + (e && e.message ? e.message : 'erro desconhecido'));
+    }finally{
+      setLoading(false);
+    }
   };
 
   return <div className="auth-bg">
@@ -2217,10 +2373,15 @@ function LoginScreen({ onLogin, usersHook }){
     setErr('');
     if(!username || !pwd) return setErr('Preencha usuário e senha.');
     setLoading(true);
-    const user = await usersHook.verify(username, pwd);
-    if(user) onLogin(user);
-    else setErr('Usuário ou senha incorretos.');
-    setLoading(false);
+    try{
+      const user = await usersHook.verify(username, pwd);
+      if(user) onLogin(user);
+      else setErr('Usuário ou senha incorretos.');
+    }catch(e){
+      setErr('Erro ao verificar login: ' + (e && e.message ? e.message : 'erro desconhecido'));
+    }finally{
+      setLoading(false);
+    }
   };
 
   return <div className="auth-bg">
@@ -2910,10 +3071,10 @@ function App(){
   const [confirmDel, setConfirmDel] = useState(null);
   const [showNotif, setShowNotif] = useState(false);
 
-  const pat = useCollection("patients:");
-  const pro = useCollection("professionals:");
-  const ther = useCollection("therapies:");
-  const pts = useCollection("pts:");
+  const pat = useCollection("pacientes");
+  const pro = useCollection("profissionais");
+  const ther = useCollection("sessoes_terapia");
+  const pts = useCollection("pts");
   const filterCfg = useFilterConfig();
   const tiposTerapia = useTiposTerapia();
   const alerts = useAlerts(pat.items, pts.items);
