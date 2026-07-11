@@ -2609,8 +2609,9 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta, savePa
 
   const therapiesFiltradas = useMemo(() => fProf ? therapies.filter(t => t.profissionalId === fProf) : therapies, [therapies, fProf]);
 
-  // Dá alta diretamente em um ou mais tipos de terapia do paciente (mesma lógica da aba Terapias):
-  // marca esses tipos como "Alta" no cadastro e, se não sobrar nenhuma terapia pendente, o status geral do paciente vira Alta.
+  // Dá alta diretamente em um ou mais tipos de terapia do paciente. Mexe SOMENTE
+  // nesses tipos específicos — não altera o status geral do paciente (isso fica a
+  // cargo da aba Terapias, sessão a sessão, ou do PTS, que fazem alta completa).
   const darAlta = async (patientId, tipos) => {
     if(!savePatient || !tipos || tipos.length === 0) return;
     const patient = patients.find(x => x.id === patientId);
@@ -2618,13 +2619,8 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta, savePa
     const necessarias = patient.terapiasNecessarias || [];
     let novaLista = necessarias.map(t => tipos.includes(t.tipo) ? { ...t, status:"Alta" } : t);
     tipos.forEach(tp => { if(!novaLista.some(t=>t.tipo===tp)) novaLista.push({ tipo:tp, status:"Alta" }); });
-    const semTerapiaPendente = novaLista.length > 0 && novaLista.every(t => t.status === "Alta");
-    await savePatient({ ...patient, status: semTerapiaPendente ? "Alta" : patient.status, terapiasNecessarias: novaLista });
-    if(notify){
-      notify(semTerapiaPendente
-        ? `${patient.nome} recebeu alta de todas as terapias — status atualizado para Alta`
-        : `Alta registrada para ${patient.nome} em ${tipos.join(", ")}`);
-    }
+    await savePatient({ ...patient, terapiasNecessarias: novaLista });
+    if(notify) notify(`Alta registrada para ${patient.nome} em ${tipos.join(", ")}`);
   };
 
   const statusTerapiaDoPaciente = (patientId, tipo) => {
@@ -3252,4 +3248,5 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
+
 
