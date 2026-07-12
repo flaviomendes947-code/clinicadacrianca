@@ -1490,6 +1490,121 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     notify("Relatório em PDF baixado");
   };
 
+  const calcIdadeExport = (nasc) => {
+    if(!nasc) return "—";
+    const diff = Date.now() - new Date(nasc+"T00:00").getTime();
+    return Math.floor(diff / (365.25*24*3600*1000)) + " anos";
+  };
+
+  const diasEsperaExport = (entrada) => {
+    if(!entrada) return "—";
+    const diff = Date.now() - new Date(entrada+"T00:00").getTime();
+    return Math.floor(diff / (24*3600*1000)) + " dias";
+  };
+
+  // ── Relatório: Relação nominal de pacientes por profissional ────────────────
+  const generateRelacaoPorProfissional = () => {
+    if(typeof window.jspdf === "undefined"){ notify("Biblioteca de PDF não carregou. Verifique sua conexão."); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    let y = 18;
+
+    doc.setFontSize(16); doc.setFont(undefined, "bold");
+    doc.text("Relação Nominal de Pacientes por Profissional", 14, y);
+    doc.setFontSize(10); doc.setFont(undefined, "normal");
+    y += 7;
+    doc.text(`Gerado em ${hoje}`, 14, y);
+    y += 8;
+
+    const profsOrdenados = [...professionals].sort((a,b)=>a.nome.localeCompare(b.nome));
+    let algumComPaciente = false;
+
+    profsOrdenados.forEach(prof => {
+      const vinculos = [];
+      const vistos = new Set();
+      therapies.filter(t => t.profissionalId === prof.id).forEach(t => {
+        const chave = t.pacienteId + "|" + t.tipo;
+        if(vistos.has(chave)) return;
+        vistos.add(chave);
+        const pac = patients.find(p => p.id === t.pacienteId);
+        if(!pac) return;
+        vinculos.push({ pac, tipo: t.tipo, status: t.status });
+      });
+      if(vinculos.length === 0) return;
+      algumComPaciente = true;
+      vinculos.sort((a,b) => a.pac.nome.localeCompare(b.pac.nome));
+
+      if(y > 260){ doc.addPage(); y = 18; }
+      doc.setFontSize(12); doc.setFont(undefined, "bold");
+      doc.text(`${prof.nome}${prof.especialidade ? " — " + prof.especialidade : ""}`, 14, y);
+      doc.autoTable({
+        startY: y + 4,
+        head: [["#","Paciente","Nascimento","Idade","Terapia","Situação"]],
+        body: vinculos.map((v,i) => [
+          String(i+1), v.pac.nome, v.pac.nascimento || "—", calcIdadeExport(v.pac.nascimento), v.tipo,
+          v.status === "Alta" ? "Alta" : (v.status === "Cancelada" || v.status === "Faltou" ? v.status : "Em atendimento")
+        ]),
+        theme: "grid",
+        headStyles: { fillColor: [59,111,240] },
+        styles: { fontSize: 8.5 },
+        margin: { left: 14, right: 14 },
+      });
+      y = doc.lastAutoTable.finalY + 12;
+    });
+
+    if(!algumComPaciente){
+      doc.setFontSize(11); doc.setFont(undefined, "normal");
+      doc.text("Nenhum profissional possui pacientes vinculados no momento.", 14, y);
+    }
+
+    doc.save(`relacao-por-profissional-${new Date().toISOString().slice(0,10)}.pdf`);
+    notify("Relação por profissional baixada em PDF");
+  };
+
+  // ── Relatório: Relação nominal da lista de espera ────────────────────────────
+  const generateRelacaoListaEspera = () => {
+    if(typeof window.jspdf === "undefined"){ notify("Biblioteca de PDF não carregou. Verifique sua conexão."); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    let y = 18;
+
+    doc.setFontSize(16); doc.setFont(undefined, "bold");
+    doc.text("Relação Nominal — Lista de Espera", 14, y);
+    doc.setFontSize(10); doc.setFont(undefined, "normal");
+    y += 7;
+    doc.text(`Gerado em ${hoje}`, 14, y);
+    y += 8;
+
+    const emEspera = patients
+      .filter(p => (p.terapiasNecessarias||[]).some(t=>t.status==="Lista de espera"))
+      .sort((a,b) => { if(!a.dataEntrada) return 1; if(!b.dataEntrada) return -1; return a.dataEntrada.localeCompare(b.dataEntrada); });
+
+    if(emEspera.length === 0){
+      doc.setFontSize(11); doc.setFont(undefined, "normal");
+      doc.text("Nenhum paciente em lista de espera no momento.", 14, y);
+    } else {
+      doc.autoTable({
+        startY: y,
+        head: [["#","Nome","Nascimento","Idade","Entrada","Espera","Terapias pendentes","Responsável","Telefone"]],
+        body: emEspera.map((p,i) => [
+          String(i+1), p.nome, p.nascimento || "—", calcIdadeExport(p.nascimento),
+          p.dataEntrada || "—", diasEsperaExport(p.dataEntrada),
+          (p.terapiasNecessarias||[]).filter(t=>t.status==="Lista de espera").map(t=>t.tipo).join(", "),
+          p.responsavel || "—", p.telefone || "—"
+        ]),
+        theme: "grid",
+        headStyles: { fillColor: [217,119,6] },
+        styles: { fontSize: 8 },
+        margin: { left: 14, right: 14 },
+      });
+    }
+
+    doc.save(`lista-de-espera-${new Date().toISOString().slice(0,10)}.pdf`);
+    notify("Relação da lista de espera baixada em PDF");
+  };
+
   return <div className="card">
     <div className="section-title">Relatórios completos</div>
     <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Gere um relatório completo pronto para apresentação ou prestação de contas.</p>
@@ -1500,6 +1615,13 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     <p style={{color:'var(--muted)', fontSize:12, marginBottom:20}}>
       O PDF traz um resumo executivo (indicadores, terapias ativas/em espera e relação nominal da lista de espera). O Excel traz todas as tabelas (Resumo, Pacientes, Profissionais, Terapias e PTS) em abas separadas, prontas para editar.
     </p>
+
+    <div className="section-title">Relações nominais (PDF)</div>
+    <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Listas prontas para impressão, com o nome de cada paciente.</p>
+    <div className="grid grid-2" style={{marginBottom:20}}>
+      <button className="btn btn-secondary" onClick={generateRelacaoPorProfissional}>📋 Relação nominal por profissional (PDF)</button>
+      <button className="btn btn-secondary" onClick={generateRelacaoListaEspera}>📋 Relação nominal — lista de espera (PDF)</button>
+    </div>
 
     <div className="section-title">Exportar dados individuais (CSV)</div>
     <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Baixe cada tabela separadamente em formato CSV, compatível com Excel e Google Planilhas.</p>
@@ -3248,5 +3370,6 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
+
 
 
