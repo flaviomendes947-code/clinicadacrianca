@@ -1301,14 +1301,21 @@ function AssistenteIATab({ notify }){
     try{
       const resp = await fetch(`${SUPABASE_URL}/functions/v1/ask-ai`, {
         method: "POST",
-        headers: { "Content-Type":"application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: {
+          "Content-Type":"application/json",
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "apikey": SUPABASE_ANON_KEY
+        },
         body: JSON.stringify({ question: texto }),
       });
       const data = await resp.json();
       if(!resp.ok || data.error) throw new Error(data.error || `Erro ${resp.status}`);
       setMensagens(m => [...m, { autor:"ia", texto: data.answer }]);
     }catch(e){
-      setMensagens(m => [...m, { autor:"ia", texto: "Não consegui responder agora: " + (e.message||e), erro:true }]);
+      const dica = /failed to fetch/i.test(String(e.message||e))
+        ? " (a função pode não estar publicada ainda, ou a verificação de JWT está bloqueando a chamada — veja os Logs da função 'ask-ai' no Supabase)"
+        : "";
+      setMensagens(m => [...m, { autor:"ia", texto: "Não consegui responder agora: " + (e.message||e) + dica, erro:true }]);
       if(notify) notify("Erro ao consultar o assistente de IA");
     }
     setEnviando(false);
@@ -3496,6 +3503,7 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
+
 
 
 
