@@ -295,7 +295,7 @@
 </style>
 
 <script type="text/babel" data-presets="react">
-const { useState, useEffect, useCallback, useMemo } = React;
+const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
@@ -1281,8 +1281,95 @@ function JsonViewerModal({ patients, professionals, therapies, pts, onClose, not
   </div>;
 }
 
+// ── Assistente de IA (perguntas em linguagem natural sobre os dados) ─────────
+function AssistenteIATab({ notify }){
+  const [mensagens, setMensagens] = useState([
+    { autor: "ia", texto: "Oi! Pode perguntar coisas como \"quantas crianças estão em lista de espera de fonoaudiologia?\" ou \"quais pacientes da Rebeca já receberam alta?\"." }
+  ]);
+  const [pergunta, setPergunta] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const fimRef = useRef(null);
+
+  useEffect(() => { fimRef.current && fimRef.current.scrollIntoView({ behavior:"smooth" }); }, [mensagens, enviando]);
+
+  const enviar = async () => {
+    const texto = pergunta.trim();
+    if(!texto || enviando) return;
+    setMensagens(m => [...m, { autor:"user", texto }]);
+    setPergunta("");
+    setEnviando(true);
+    try{
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/ask-ai`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ question: texto }),
+      });
+      const data = await resp.json();
+      if(!resp.ok || data.error) throw new Error(data.error || `Erro ${resp.status}`);
+      setMensagens(m => [...m, { autor:"ia", texto: data.answer }]);
+    }catch(e){
+      setMensagens(m => [...m, { autor:"ia", texto: "Não consegui responder agora: " + (e.message||e), erro:true }]);
+      if(notify) notify("Erro ao consultar o assistente de IA");
+    }
+    setEnviando(false);
+  };
+
+  const onKeyDown = (e) => { if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); enviar(); } };
+
+  return <div className="card" style={{display:"flex", flexDirection:"column", height:"70vh"}}>
+    <div className="section-title">Assistente de IA</div>
+    <p style={{color:'var(--muted)', fontSize:13, marginBottom:14}}>
+      Pergunte sobre os dados do sistema em português. As respostas são geradas por IA a partir dos dados atuais — sempre confira informações importantes antes de usar em decisões clínicas.
+    </p>
+    <div style={{flex:1, overflowY:"auto", border:"1px solid var(--border)", borderRadius:10, padding:14, background:"var(--bg-soft, #f8fafc)", marginBottom:12}}>
+      {mensagens.map((m,i) => (
+        <div key={i} style={{display:"flex", justifyContent: m.autor==="user" ? "flex-end" : "flex-start", marginBottom:10}}>
+          <div style={{
+            maxWidth:"75%", padding:"9px 13px", borderRadius:12, fontSize:13.5, lineHeight:1.5, whiteSpace:"pre-wrap",
+            background: m.autor==="user" ? "#3b6ff0" : (m.erro ? "#fef2f2" : "#fff"),
+            color: m.autor==="user" ? "#fff" : (m.erro ? "#991b1b" : "var(--text)"),
+            border: m.autor==="ia" ? "1px solid var(--border)" : "none"
+          }}>{m.texto}</div>
+        </div>
+      ))}
+      {enviando && <div style={{fontSize:13, color:"var(--muted)"}}>Consultando os dados…</div>}
+      <div ref={fimRef}/>
+    </div>
+    <div style={{display:"flex", gap:8}}>
+      <textarea
+        value={pergunta}
+        onChange={e=>setPergunta(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="Digite sua pergunta..."
+        style={{flex:1, minHeight:44, maxHeight:100, resize:"vertical"}}
+      />
+      <button className="btn btn-primary" onClick={enviar} disabled={enviando || !pergunta.trim()}>Enviar</button>
+    </div>
+  </div>;
+}
+
 function ExportTab({ patients, professionals, therapies, pts, notify }){
   const [showJson, setShowJson] = useState(false);
+
+  // ── Filtros para as relações nominais (PDF) ──────────────────────────────────
+  const [fRelProf, setFRelProf] = useState("");
+  const [fRelEsp, setFRelEsp] = useState("");
+  const [fRelStatus, setFRelStatus] = useState("");
+  const [fRelTipoEspera, setFRelTipoEspera] = useState("");
+
+  const especialidadesDisponiveis = useMemo(() => {
+    const s = new Set();
+    (professionals||[]).forEach(p => { if(p.especialidade) s.add(p.especialidade); });
+    return [...s].sort();
+  }, [professionals]);
+
+  const tiposDisponiveis = useMemo(() => {
+    const s = new Set();
+    (therapies||[]).forEach(t => { if(t.tipo) s.add(t.tipo); });
+    (patients||[]).forEach(p => (p.terapiasNecessarias||[]).forEach(t => { if(t.tipo) s.add(t.tipo); }));
+    return [...s].sort();
+  }, [therapies, patients]);
+
   const exportPatients = () => {
     const headers = [
       {key:'nome',label:'Nome'},{key:'cpf',label:'CPF/CNS'},{key:'nascimento',label:'Nascimento'},
@@ -1503,6 +1590,8 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
   };
 
   // ── Relatório: Relação nominal de pacientes por profissional ────────────────
+  const statusBucketOf = (status) => status === "Alta" ? "Alta" : (status === "Cancelada" || status === "Faltou" ? status : "Em atendimento");
+
   const generateRelacaoPorProfissional = () => {
     if(typeof window.jspdf === "undefined"){ notify("Biblioteca de PDF não carregou. Verifique sua conexão."); return; }
     const { jsPDF } = window.jspdf;
@@ -1515,15 +1604,24 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     doc.setFontSize(10); doc.setFont(undefined, "normal");
     y += 7;
     doc.text(`Gerado em ${hoje}`, 14, y);
+    const filtrosAtivos = [];
+    if(fRelProf){ const p = professionals.find(x=>x.id===fRelProf); if(p) filtrosAtivos.push(`Profissional: ${p.nome}`); }
+    if(fRelEsp) filtrosAtivos.push(`Especialidade: ${fRelEsp}`);
+    if(fRelStatus) filtrosAtivos.push(`Status: ${fRelStatus}`);
+    if(filtrosAtivos.length){ y += 6; doc.setFontSize(9); doc.text(`Filtros: ${filtrosAtivos.join(" · ")}`, 14, y); doc.setFontSize(10); }
     y += 8;
 
-    const profsOrdenados = [...professionals].sort((a,b)=>a.nome.localeCompare(b.nome));
+    const profsOrdenados = professionals
+      .filter(p => !fRelProf || p.id === fRelProf)
+      .filter(p => !fRelEsp || p.especialidade === fRelEsp)
+      .sort((a,b)=>a.nome.localeCompare(b.nome));
     let algumComPaciente = false;
 
     profsOrdenados.forEach(prof => {
       const vinculos = [];
       const vistos = new Set();
       therapies.filter(t => t.profissionalId === prof.id).forEach(t => {
+        if(fRelStatus && statusBucketOf(t.status) !== fRelStatus) return;
         const chave = t.pacienteId + "|" + t.tipo;
         if(vistos.has(chave)) return;
         vistos.add(chave);
@@ -1543,7 +1641,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
         head: [["#","Paciente","Nascimento","Idade","Terapia","Situação"]],
         body: vinculos.map((v,i) => [
           String(i+1), v.pac.nome, v.pac.nascimento || "—", calcIdadeExport(v.pac.nascimento), v.tipo,
-          v.status === "Alta" ? "Alta" : (v.status === "Cancelada" || v.status === "Faltou" ? v.status : "Em atendimento")
+          statusBucketOf(v.status)
         ]),
         theme: "grid",
         headStyles: { fillColor: [59,111,240] },
@@ -1575,10 +1673,11 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     doc.setFontSize(10); doc.setFont(undefined, "normal");
     y += 7;
     doc.text(`Gerado em ${hoje}`, 14, y);
+    if(fRelTipoEspera){ y += 6; doc.setFontSize(9); doc.text(`Filtro: Terapia pendente = ${fRelTipoEspera}`, 14, y); doc.setFontSize(10); }
     y += 8;
 
     const emEspera = patients
-      .filter(p => (p.terapiasNecessarias||[]).some(t=>t.status==="Lista de espera"))
+      .filter(p => (p.terapiasNecessarias||[]).some(t => t.status==="Lista de espera" && (!fRelTipoEspera || t.tipo===fRelTipoEspera)))
       .sort((a,b) => { if(!a.dataEntrada) return 1; if(!b.dataEntrada) return -1; return a.dataEntrada.localeCompare(b.dataEntrada); });
 
     if(emEspera.length === 0){
@@ -1591,7 +1690,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
         body: emEspera.map((p,i) => [
           String(i+1), p.nome, p.nascimento || "—", calcIdadeExport(p.nascimento),
           p.dataEntrada || "—", diasEsperaExport(p.dataEntrada),
-          (p.terapiasNecessarias||[]).filter(t=>t.status==="Lista de espera").map(t=>t.tipo).join(", "),
+          (p.terapiasNecessarias||[]).filter(t=>t.status==="Lista de espera" && (!fRelTipoEspera || t.tipo===fRelTipoEspera)).map(t=>t.tipo).join(", "),
           p.responsavel || "—", p.telefone || "—"
         ]),
         theme: "grid",
@@ -1617,7 +1716,32 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     </p>
 
     <div className="section-title">Relações nominais (PDF)</div>
-    <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Listas prontas para impressão, com o nome de cada paciente.</p>
+    <p style={{color:'var(--muted)', fontSize:13, marginBottom:12}}>Listas prontas para impressão, com o nome de cada paciente.</p>
+    <div className="toolbar" style={{marginBottom:8}}>
+      <select style={{maxWidth:220}} value={fRelProf} onChange={e=>setFRelProf(e.target.value)}>
+        <option value="">Profissional (todos)</option>
+        {[...professionals].sort((a,b)=>a.nome.localeCompare(b.nome)).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+      </select>
+      <select style={{maxWidth:200}} value={fRelEsp} onChange={e=>setFRelEsp(e.target.value)}>
+        <option value="">Especialidade (todas)</option>
+        {especialidadesDisponiveis.map(e => <option key={e} value={e}>{e}</option>)}
+      </select>
+      <select style={{maxWidth:180}} value={fRelStatus} onChange={e=>setFRelStatus(e.target.value)}>
+        <option value="">Status (todos)</option>
+        <option value="Em atendimento">Em atendimento</option>
+        <option value="Alta">Alta</option>
+        <option value="Cancelada">Cancelada</option>
+        <option value="Faltou">Faltou</option>
+      </select>
+      <select style={{maxWidth:200}} value={fRelTipoEspera} onChange={e=>setFRelTipoEspera(e.target.value)}>
+        <option value="">Terapia pendente (todas)</option>
+        {tiposDisponiveis.map(t => <option key={t} value={t}>{t}</option>)}
+      </select>
+      {(fRelProf || fRelEsp || fRelStatus || fRelTipoEspera) && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={()=>{setFRelProf("");setFRelEsp("");setFRelStatus("");setFRelTipoEspera("");}}>Limpar filtros</button>}
+    </div>
+    <p style={{color:'var(--muted)', fontSize:12, marginBottom:18}}>
+      Profissional, especialidade e status filtram a <strong>relação por profissional</strong>. Terapia pendente filtra a <strong>lista de espera</strong>.
+    </p>
     <div className="grid grid-2" style={{marginBottom:20}}>
       <button className="btn btn-secondary" onClick={generateRelacaoPorProfissional}>📋 Relação nominal por profissional (PDF)</button>
       <button className="btn btn-secondary" onClick={generateRelacaoListaEspera}>📋 Relação nominal — lista de espera (PDF)</button>
@@ -3298,6 +3422,7 @@ function App(){
     {id:"pts", label:"PTS", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>},
     {id:"filtros", label:"Filtros", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>},
     {id:"exportar", label:"Exportar", icon:<IconUsers/>},
+    {id:"assistente-ia", label:"Assistente IA", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>},
     ...(isAdmin ? [{id:"usuarios", label:"Usuários", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}] : []),
     {id:"minha-conta", label:"Minha conta", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>},
   ];
@@ -3356,6 +3481,7 @@ function App(){
     {tab==="pts" && <PTSTab pts={pts.items} patients={pat.items} loading={pts.loading} save={pts.save} remove={pts.remove} notify={notify} preselectPatientId={ptsPreselect} onConsumePreselect={()=>setPtsPreselect(null)} savePatient={pat.save}/>}
     {tab==="filtros" && <FiltrosTab configs={filterCfg.configs} loading={filterCfg.loading} add={filterCfg.add} remove={filterCfg.remove} move={filterCfg.move} notify={notify} tiposTerapia={tiposTerapia}/>}
     {tab==="exportar" && <ExportTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} notify={notify}/>}
+    {tab==="assistente-ia" && <AssistenteIATab notify={notify}/>}
     {tab==="usuarios" && isAdmin && <UsersTab usersHook={usersHook} currentUser={currentUser} notify={notify}/>}
     {tab==="minha-conta" && <MyAccountTab currentUser={currentUser} usersHook={usersHook} notify={notify}/>}
 
@@ -3370,6 +3496,7 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
+
 
 
 
