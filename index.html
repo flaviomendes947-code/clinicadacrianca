@@ -668,6 +668,7 @@ function TherapyMiniBadges({ list }){
   let ordemEspera = 0;
   const styleFor = (status) => {
     if(status === "Ativo") return { bg:'var(--ok-soft)', color:'var(--ok)', border:'#bbf7d0' };
+    if(status === "Alta") return { bg:'#eef2ff', color:'#4f46e5', border:'#c7d2fe' };
     if(status === "Finalizado") return { bg:'#f1f5f9', color:'#64748b', border:'#cbd5e1' };
     return { bg:'var(--warn-soft)', color:'var(--warn)', border:'#fde68a' }; // Lista de espera
   };
@@ -684,9 +685,10 @@ function TherapyMiniBadges({ list }){
         }}>
           {isEspera
             ? <span style={{width:14, height:14, borderRadius:99, background:'var(--warn)', color:'#fff', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>{ordemEspera}</span>
-            : <span style={{width:6, height:6, borderRadius:99, background: t.status==="Ativo" ? 'var(--ok)' : '#64748b', flexShrink:0}}/>
+            : <span style={{width:6, height:6, borderRadius:99, background: t.status==="Ativo" ? 'var(--ok)' : (t.status==="Alta" ? '#4f46e5' : '#64748b'), flexShrink:0}}/>
           }
           {t.tipo}
+          <span style={{fontWeight:600, opacity:0.75}}>· {t.status}</span>
           {t.status==="Ativo" && t.posTriagem && <span style={{
             background:'rgba(255,255,255,0.6)', color:s.color, fontSize:9.5, fontWeight:800,
             padding:'1px 5px', borderRadius:8, letterSpacing:'.02em'
@@ -2033,11 +2035,12 @@ const blankPTS = () => ({
   dataAlta:"", tipoAlta:"", obs:""
 });
 
-function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatientId, onConsumePreselect, savePatient }){
+function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatientId, preselectTipos, onConsumePreselect, savePatient }){
   const [form, setForm] = useState(blankPTS());
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [search, setSearch] = useState("");
+  const [tiposParaAlta, setTiposParaAlta] = useState([]);
   const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
 
   useEffect(() => {
@@ -2050,8 +2053,13 @@ function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatient
       setEditing(null);
       setForm({ ...blankPTS(), pacienteId: preselectPatientId });
     }
+    setTiposParaAlta(preselectTipos && preselectTipos.length ? [...preselectTipos] : []);
     if(onConsumePreselect) onConsumePreselect();
   }, [preselectPatientId, pts]);
+
+  const toggleTipoAlta = (tipo) => {
+    setTiposParaAlta(list => list.includes(tipo) ? list.filter(t=>t!==tipo) : [...list, tipo]);
+  };
 
   const selectedPatient = useMemo(() =>
     patients.find(p => p.id === form.pacienteId) || null
@@ -2064,26 +2072,28 @@ function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatient
     }
     await save(form);
 
-    // Mesma lógica usada na aba Terapias: se o profissional deu alta pelo PTS
-    // (preencheu Data da Alta), registra a alta em todas as terapias do paciente
-    // e, sem nenhuma terapia pendente, o status geral do paciente vira Alta.
+    // Se o profissional deu alta pelo PTS (preencheu Data da Alta):
+    // se terapias específicas estiverem marcadas abaixo, a alta vale só para elas;
+    // se nenhuma estiver marcada, a alta vale para todas as terapias do paciente.
     if(form.dataAlta && savePatient){
       const patient = patients.find(x => x.id === form.pacienteId);
       if(patient){
         const necessarias = patient.terapiasNecessarias || [];
-        const novaLista = necessarias.map(t => ({ ...t, status:"Alta" }));
+        const alvoTipos = tiposParaAlta.length > 0 ? tiposParaAlta : necessarias.map(t=>t.tipo);
+        const novaLista = necessarias.map(t => alvoTipos.includes(t.tipo) ? { ...t, status:"Alta" } : t);
         const semTerapiaPendente = novaLista.length > 0 && novaLista.every(t => t.status === "Alta");
         await savePatient({ ...patient, status: semTerapiaPendente ? "Alta" : patient.status, terapiasNecessarias: novaLista });
-        if(semTerapiaPendente) notify(`${patient.nome} recebeu alta do PTS — status do paciente atualizado para Alta`);
+        if(semTerapiaPendente) notify(`${patient.nome} recebeu alta de todas as terapias — status atualizado para Alta`);
+        else if(tiposParaAlta.length > 0) notify(`Alta registrada para ${patient.nome} em ${alvoTipos.join(", ")}`);
       }
     }
 
     notify(editing ? "PTS atualizado" : "PTS criado");
-    setForm(blankPTS()); setEditing(null);
+    setForm(blankPTS()); setEditing(null); setTiposParaAlta([]);
   };
 
-  const startEdit = (p) => { setEditing(p); setForm(p); };
-  const cancelEdit = () => { setEditing(null); setForm(blankPTS()); };
+  const startEdit = (p) => { setEditing(p); setForm(p); setTiposParaAlta([]); };
+  const cancelEdit = () => { setEditing(null); setForm(blankPTS()); setTiposParaAlta([]); };
 
   const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
 
@@ -2138,6 +2148,29 @@ function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatient
           </select>
         </Field>
       </div>
+
+      {selectedPatient && (selectedPatient.terapiasNecessarias||[]).length > 0 && <div style={{marginBottom:16}}>
+        <Field label="Aplicar alta a quais terapias?">
+          <div style={{display:'flex', flexWrap:'wrap', gap:8, marginTop:4}}>
+            {(selectedPatient.terapiasNecessarias||[]).map(t => (
+              <label key={t.tipo} style={{
+                display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:20, fontSize:13, cursor:'pointer',
+                border: '1px solid ' + (tiposParaAlta.includes(t.tipo) ? '#4f46e5' : 'var(--border)'),
+                background: tiposParaAlta.includes(t.tipo) ? '#eef2ff' : 'var(--surface)',
+                color: tiposParaAlta.includes(t.tipo) ? '#4f46e5' : 'var(--text)'
+              }}>
+                <input type="checkbox" checked={tiposParaAlta.includes(t.tipo)} onChange={()=>toggleTipoAlta(t.tipo)} style={{margin:0}}/>
+                {t.tipo} <span style={{opacity:0.7}}>· {t.status}</span>
+              </label>
+            ))}
+          </div>
+          <p style={{fontSize:12, color:'var(--muted)', marginTop:6}}>
+            {tiposParaAlta.length > 0
+              ? "A alta será registrada apenas nas terapias marcadas acima."
+              : "Nenhuma terapia marcada: a alta será registrada em todas as terapias do paciente."}
+          </p>
+        </Field>
+      </div>}
 
       <Field label="Observações">
         <textarea value={form.obs} onChange={set('obs')} placeholder="Informações adicionais sobre o plano terapêutico..." />
@@ -2862,20 +2895,6 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta, savePa
 
   const therapiesFiltradas = useMemo(() => fProf ? therapies.filter(t => t.profissionalId === fProf) : therapies, [therapies, fProf]);
 
-  // Dá alta diretamente em um ou mais tipos de terapia do paciente. Mexe SOMENTE
-  // nesses tipos específicos — não altera o status geral do paciente (isso fica a
-  // cargo da aba Terapias, sessão a sessão, ou do PTS, que fazem alta completa).
-  const darAlta = async (patientId, tipos) => {
-    if(!savePatient || !tipos || tipos.length === 0) return;
-    const patient = patients.find(x => x.id === patientId);
-    if(!patient) return;
-    const necessarias = patient.terapiasNecessarias || [];
-    let novaLista = necessarias.map(t => tipos.includes(t.tipo) ? { ...t, status:"Alta" } : t);
-    tipos.forEach(tp => { if(!novaLista.some(t=>t.tipo===tp)) novaLista.push({ tipo:tp, status:"Alta" }); });
-    await savePatient({ ...patient, terapiasNecessarias: novaLista });
-    if(notify) notify(`Alta registrada para ${patient.nome} em ${tipos.join(", ")}`);
-  };
-
   const statusTerapiaDoPaciente = (patientId, tipo) => {
     const p = patientOf(patientId);
     const t = p && (p.terapiasNecessarias||[]).find(x => x.tipo === tipo);
@@ -2981,7 +3000,7 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta, savePa
                                   <td>
                                     {statusTerapiaDoPaciente(id, row.tipo) === "Alta"
                                       ? <StatusBadge status="Alta"/>
-                                      : <button className="btn btn-secondary" style={{padding:'6px 12px', fontSize:12.5}} onClick={e=>{e.stopPropagation(); darAlta(id, [row.tipo]);}}>
+                                      : <button className="btn btn-secondary" style={{padding:'6px 12px', fontSize:12.5}} onClick={e=>{e.stopPropagation(); onDarAlta && onDarAlta(id, [row.tipo]);}}>
                                           🎓 Dar alta
                                         </button>}
                                   </td>
@@ -3039,7 +3058,7 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta, savePa
                                       const todasAlta = tiposDoPacienteNaEsp.length>0 && tiposDoPacienteNaEsp.every(tp => statusTerapiaDoPaciente(id, tp) === "Alta");
                                       return todasAlta
                                         ? <StatusBadge status="Alta"/>
-                                        : <button className="btn btn-secondary" style={{padding:'6px 12px', fontSize:12.5}} onClick={e=>{e.stopPropagation(); darAlta(id, tiposDoPacienteNaEsp);}}>
+                                        : <button className="btn btn-secondary" style={{padding:'6px 12px', fontSize:12.5}} onClick={e=>{e.stopPropagation(); onDarAlta && onDarAlta(id, tiposDoPacienteNaEsp);}}>
                                             🎓 Dar alta
                                           </button>;
                                     })()}
@@ -3384,7 +3403,7 @@ function App(){
   const [toast, setToast] = useState("");
   const [editingPatient, setEditingPatient] = useState(null);
   const [ptsPreselect, setPtsPreselect] = useState(null);
-  const goToDarAlta = (patientId) => { setPtsPreselect(patientId); setTab("pts"); };
+  const goToDarAlta = (patientId, tipos) => { setPtsPreselect({ pacienteId: patientId, tipos: tipos || [] }); setTab("pts"); };
   const [therapyPreselect, setTherapyPreselect] = useState(null);
   const goToAtendimento = (patient, tipo) => {
     setTherapyPreselect({ pacienteId: patient.id, tipo: tipo || "" });
@@ -3426,7 +3445,7 @@ function App(){
     {id:"por-profissional", label:"Por profissional", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>},
     {id:"profissionais", label:"Profissionais", icon:<IconUsers/>},
     {id:"terapias", label:"Terapias", icon:<IconUsers/>},
-    {id:"pts", label:"PTS", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>},
+    {id:"pts", label:"PTS e Alta", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>},
     {id:"filtros", label:"Filtros", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>},
     {id:"exportar", label:"Exportar", icon:<IconUsers/>},
     {id:"assistente-ia", label:"Assistente IA", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>},
@@ -3485,7 +3504,7 @@ function App(){
     {tab==="por-profissional" && <ProfessionalCaseloadTab therapies={ther.items} patients={pat.items} professionals={pro.items}/>}
     {tab==="profissionais" && <ProfessionalsTab professionals={pro.items} loading={pro.loading} save={pro.save} remove={pro.remove} notify={notify} filterConfigs={filterCfg.configs}/>}
     {tab==="terapias" && <TherapiesTab therapies={ther.items} patients={pat.items} professionals={pro.items} loading={ther.loading} save={ther.save} remove={ther.remove} notify={notify} filterConfigs={filterCfg.configs} tiposTerapia={tiposTerapia.tipos} preselect={therapyPreselect} onConsumePreselect={()=>setTherapyPreselect(null)} savePatient={pat.save}/>}
-    {tab==="pts" && <PTSTab pts={pts.items} patients={pat.items} loading={pts.loading} save={pts.save} remove={pts.remove} notify={notify} preselectPatientId={ptsPreselect} onConsumePreselect={()=>setPtsPreselect(null)} savePatient={pat.save}/>}
+    {tab==="pts" && <PTSTab pts={pts.items} patients={pat.items} loading={pts.loading} save={pts.save} remove={pts.remove} notify={notify} preselectPatientId={ptsPreselect ? ptsPreselect.pacienteId : null} preselectTipos={ptsPreselect ? ptsPreselect.tipos : []} onConsumePreselect={()=>setPtsPreselect(null)} savePatient={pat.save}/>}
     {tab==="filtros" && <FiltrosTab configs={filterCfg.configs} loading={filterCfg.loading} add={filterCfg.add} remove={filterCfg.remove} move={filterCfg.move} notify={notify} tiposTerapia={tiposTerapia}/>}
     {tab==="exportar" && <ExportTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} notify={notify}/>}
     {tab==="assistente-ia" && <AssistenteIATab notify={notify}/>}
