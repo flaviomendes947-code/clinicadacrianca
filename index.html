@@ -1128,7 +1128,7 @@ function PatientPicker({ patients, value, onChange, placeholder, style }){
     }, 150);
   };
 
-  return <div ref={boxRef} style={{position:'relative'}}>
+  return <div ref={boxRef} style={{position:'relative', zIndex: open ? 500 : 'auto', isolation:'isolate'}}>
     <input
       type="text"
       value={query}
@@ -1139,20 +1139,20 @@ function PatientPicker({ patients, value, onChange, placeholder, style }){
       style={style}
     />
     {open && matches.length > 0 && <div style={{
-      position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:30,
-      background:'var(--panel)', border:'1px solid var(--border)', borderRadius:8,
+      position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:500,
+      background:'#ffffff', border:'1px solid var(--border)', borderRadius:8,
       boxShadow:'0 8px 24px rgba(0,0,0,0.12)', maxHeight:230, overflowY:'auto'
     }}>
       {matches.map(p => (
-        <div key={p.id} onMouseDown={()=>pick(p)} style={{ padding:'8px 12px', cursor:'pointer', fontSize:13.5 }}>
+        <div key={p.id} onMouseDown={()=>pick(p)} style={{ padding:'8px 12px', cursor:'pointer', fontSize:13.5, background:'#ffffff' }}>
           <div style={{fontWeight:600}}>{p.nome}</div>
           <div style={{fontSize:11.5, color:'var(--muted)'}}>{p.cpf ? "CPF: "+p.cpf : "Sem CPF cadastrado"}</div>
         </div>
       ))}
     </div>}
     {open && query.trim() && matches.length === 0 && <div style={{
-      position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:30,
-      background:'var(--panel)', border:'1px solid var(--border)', borderRadius:8,
+      position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:500,
+      background:'#ffffff', border:'1px solid var(--border)', borderRadius:8,
       padding:'10px 12px', fontSize:13, color:'var(--muted)'
     }}>Nenhum paciente encontrado</div>}
   </div>;
@@ -3595,8 +3595,6 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
-
-
 
 
 
