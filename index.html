@@ -3163,10 +3163,14 @@ function ProfessionalCaseloadTab({ therapies, patients, professionals }){
   const [fCategoria, setFCategoria] = useState("");
   const [fProfissional, setFProfissional] = useState("");
   const [expanded, setExpanded] = useState(null);
-  const toggle = (id) => setExpanded(e => e === id ? null : id);
+  const [expandedPatient, setExpandedPatient] = useState(null);
+  const toggle = (id) => { setExpanded(e => e === id ? null : id); setExpandedPatient(null); };
+  const togglePatient = (key) => setExpandedPatient(e => e === key ? null : key);
 
-  const nameOf = (id) => { const p = patients.find(x=>x.id===id); return p ? p.nome : "Desconhecido"; };
-  const statusOf = (id) => { const p = patients.find(x=>x.id===id); return p ? p.status : ""; };
+  const patientOf = (id) => patients.find(x=>x.id===id) || null;
+  const nameOf = (id) => { const p = patientOf(id); return p ? p.nome : "Desconhecido"; };
+  const statusOf = (id) => { const p = patientOf(id); return p ? p.status : ""; };
+  const fmtData = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
 
   const categorias = useMemo(() => Array.from(new Set((professionals||[]).map(p=>p.especialidade).filter(Boolean))), [professionals]);
 
@@ -3248,17 +3252,56 @@ function ProfessionalCaseloadTab({ therapies, patients, professionals }){
                   {expanded === d.prof.id && d.totalPacientes > 0 && (
                     <tr>
                       <td colSpan={6} style={{background:'var(--panel2)'}}>
-                        <div style={{display:'flex', flexWrap:'wrap', gap:8, padding:'10px 4px'}}>
-                          {d.pacientesIds.map(pid => (
-                            <span key={pid} style={{
-                              display:'inline-flex', alignItems:'center', gap:6, padding:'5px 12px', borderRadius:20,
-                              background:'var(--panel)', border:'1px solid var(--border)', fontSize:13, fontWeight:600
-                            }}>
-                              {nameOf(pid)}
-                              {statusOf(pid) && <StatusBadge status={statusOf(pid)}/>}
-                            </span>
-                          ))}
-                        </div>
+                        <table style={{margin:'6px 0'}}>
+                          <thead>
+                            <tr>
+                              <th>Paciente</th>
+                              <th>Data de nascimento</th>
+                              <th>Status</th>
+                              <th>Sessões realizadas</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {d.pacientesIds.map(pid => {
+                              const pac = patientOf(pid);
+                              const key = d.prof.id + "|" + pid;
+                              const sessoesPaciente = therapies
+                                .filter(t => t.profissionalId === d.prof.id && t.pacienteId === pid && t.status === "Realizada")
+                                .sort((a,b) => (b.data||"").localeCompare(a.data||""));
+                              return (
+                                <React.Fragment key={pid}>
+                                  <tr style={{cursor:'pointer'}} onClick={(e)=>{ e.stopPropagation(); togglePatient(key); }}>
+                                    <td style={{fontWeight:600}}>
+                                      {nameOf(pid)}
+                                      <span style={{marginLeft:6, fontSize:11, color:'var(--muted)'}}>{expandedPatient===key ? "▲" : "▼"}</span>
+                                    </td>
+                                    <td>{pac ? fmtData(pac.nascimento) : "—"}</td>
+                                    <td>{statusOf(pid) && <StatusBadge status={statusOf(pid)}/>}</td>
+                                    <td>{sessoesPaciente.length}</td>
+                                  </tr>
+                                  {expandedPatient === key && (
+                                    <tr>
+                                      <td colSpan={4} style={{background:'var(--panel)'}}>
+                                        {sessoesPaciente.length === 0
+                                          ? <div style={{padding:'8px 4px', fontSize:13, color:'var(--muted)'}}>Nenhuma sessão realizada registrada com este profissional ainda.</div>
+                                          : <div style={{display:'flex', flexWrap:'wrap', gap:8, padding:'10px 4px'}}>
+                                              {sessoesPaciente.map(s => (
+                                                <span key={s.id} style={{
+                                                  display:'inline-flex', alignItems:'center', gap:6, padding:'5px 12px', borderRadius:20,
+                                                  background:'var(--ok-soft)', border:'1px solid #bbf7d0', color:'var(--ok)', fontSize:12.5, fontWeight:600
+                                                }}>
+                                                  {fmtData(s.data)}{s.hora ? " · " + s.hora : ""}
+                                                </span>
+                                              ))}
+                                            </div>}
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </td>
                     </tr>
                   )}
