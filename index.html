@@ -496,6 +496,61 @@ function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDele
   useEffect(()=>{ setForm(editTarget || blankPatient()); }, [editTarget]);
   const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
 
+  // ── Busca de triagens para pré-preenchimento (somente em novo cadastro) ────
+  const [triagensBusca, setTriagensBusca] = useState([]);
+  const [buscaTriagem, setBuscaTriagem] = useState("");
+  const [loadingTriagens, setLoadingTriagens] = useState(false);
+  const [triagemSelecionada, setTriagemSelecionada] = useState(null);
+
+  useEffect(() => {
+    if(editTarget) return; // busca só faz sentido em cadastro novo
+    (async () => {
+      setLoadingTriagens(true);
+      try{
+        const { data, error } = await sb.from("triagens").select("*").order("data_avaliacao", { ascending:false });
+        if(error) throw error;
+        setTriagensBusca(data || []);
+      }catch(e){
+        console.error("Erro ao carregar triagens para busca", e);
+      }
+      setLoadingTriagens(false);
+    })();
+  }, [editTarget]);
+
+  const normDigitsForm = (s) => (s||"").replace(/\D/g, "");
+  const resultadosTriagem = useMemo(() => {
+    const termo = buscaTriagem.trim().toLowerCase();
+    if(termo.length < 2) return [];
+    const termoDigits = normDigitsForm(termo);
+    return triagensBusca.filter(t => {
+      const nomeMatch = (t.nome||"").toLowerCase().includes(termo);
+      const cpfMatch = termoDigits.length >= 3 && normDigitsForm(t.cpf_cns).includes(termoDigits);
+      return nomeMatch || cpfMatch;
+    }).slice(0, 8);
+  }, [triagensBusca, buscaTriagem]);
+
+  const fmtDataTriagem = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
+
+  const preencherDaTriagem = (t) => {
+    setForm(f => ({
+      ...blankPatient(),
+      nome: t.nome || "",
+      mae: t.nome_mae || "",
+      nascimento: t.nascimento || "",
+      cpf: t.cpf_cns || "",
+      telefone: t.telefone || "",
+      unidade: t.unidade || ""
+    }));
+    setTriagemSelecionada(t);
+    setBuscaTriagem("");
+    if(notify) notify("Dados da triagem carregados. Complete os demais campos.");
+  };
+
+  const limparTriagemSelecionada = () => {
+    setTriagemSelecionada(null);
+    setForm(blankPatient());
+  };
+
   const necessarias = form.terapiasNecessarias || [];
   const disponveis = (tiposTerapia||[]).filter(t => !necessarias.some(n => n.tipo === t));
   const [novaTerapia, setNovaTerapia] = useState("");
@@ -532,10 +587,45 @@ function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDele
     await save(form);
     notify(editTarget ? "Cadastro atualizado" : "Paciente cadastrado");
     setForm(blankPatient());
+    setTriagemSelecionada(null);
+    setBuscaTriagem("");
     if(onDone) onDone();
   };
 
   return <div className="card">
+    {!editTarget && (
+      <div className="card" style={{background:'var(--panel2)', boxShadow:'none', padding:16, marginBottom:20, position:'relative'}}>
+        <div className="section-title" style={{marginTop:0}}>Buscar na tabela de avaliações</div>
+        <p style={{margin:'0 0 12px', fontSize:13, color:'var(--muted)'}}>Digite o nome ou CPF/CNS da criança para localizar uma avaliação já preenchida e pré-carregar os dados compatíveis. Os demais campos ficam em branco para você complementar.</p>
+        {triagemSelecionada ? (
+          <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', padding:'9px 11px', borderRadius:9, background:'var(--ok-soft)', border:'1px solid #bbf7d0'}}>
+            <span style={{fontWeight:600, fontSize:13.5, color:'var(--ok)'}}>✓ Dados carregados de: {triagemSelecionada.nome}</span>
+            <span style={{fontSize:12.5, color:'var(--muted)'}}>Avaliação em {fmtDataTriagem(triagemSelecionada.data_avaliacao)}</span>
+            <button type="button" className="btn btn-secondary" style={{padding:'5px 12px', fontSize:12.5, marginLeft:'auto'}} onClick={limparTriagemSelecionada}>Limpar e começar do zero</button>
+          </div>
+        ) : (
+          <div style={{position:'relative'}}>
+            <input placeholder={loadingTriagens ? "Carregando avaliações..." : "Buscar por nome ou CPF/CNS..."} value={buscaTriagem} onChange={e=>setBuscaTriagem(e.target.value)} disabled={loadingTriagens} style={{maxWidth:'100%'}} />
+            {resultadosTriagem.length > 0 && (
+              <div style={{position:'absolute', zIndex:20, top:'calc(100% + 4px)', left:0, right:0, background:'var(--panel)', border:'1px solid var(--border)', borderRadius:9, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', maxHeight:280, overflowY:'auto'}}>
+                {resultadosTriagem.map(t => (
+                  <div key={t.id} onClick={()=>preencherDaTriagem(t)} style={{padding:'10px 13px', cursor:'pointer', borderBottom:'1px solid var(--border)', display:'flex', flexDirection:'column', gap:2}}
+                    onMouseEnter={e=>e.currentTarget.style.background='var(--panel2)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <span style={{fontWeight:600, fontSize:13.5}}>{t.nome || "—"}</span>
+                    <span style={{fontSize:12, color:'var(--muted)'}}>Nasc. {fmtDataTriagem(t.nascimento)} · CPF/CNS: {t.cpf_cns || "—"} · Avaliação em {fmtDataTriagem(t.data_avaliacao)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {buscaTriagem.trim().length >= 2 && resultadosTriagem.length === 0 && !loadingTriagens && (
+              <div style={{position:'absolute', zIndex:20, top:'calc(100% + 4px)', left:0, right:0, background:'var(--panel)', border:'1px solid var(--border)', borderRadius:9, padding:'10px 13px', fontSize:13, color:'var(--muted)'}}>
+                Nenhuma avaliação encontrada.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )}
     <div className="section-title">Dados do paciente</div>
     <div className="grid grid-2">
       <Field label="Nome completo" required><input placeholder="Nome completo da criança" value={form.nome} onChange={set('nome')} /></Field>
@@ -1437,6 +1527,9 @@ function TriagensTab({ notify }){
   const [erro, setErro] = useState("");
   const [q, setQ] = useState("");
   const [fPrioridade, setFPrioridade] = useState("");
+  const [fIndicacao, setFIndicacao] = useState("");
+  const [fIdadeMin, setFIdadeMin] = useState("");
+  const [fIdadeMax, setFIdadeMax] = useState("");
   const [aberta, setAberta] = useState(null);
 
   useEffect(() => {
@@ -1459,18 +1552,43 @@ function TriagensTab({ notify }){
   const fmtHora = (ts) => ts ? new Date(ts).toLocaleString('pt-BR') : "—";
   const val = (v) => v || null;
 
+  const calcIdade = (nasc) => {
+    if(!nasc) return null;
+    const hoje = new Date();
+    const nascD = new Date(nasc+"T00:00");
+    if(isNaN(nascD.getTime())) return null;
+    let idade = hoje.getFullYear() - nascD.getFullYear();
+    const m = hoje.getMonth() - nascD.getMonth();
+    if(m < 0 || (m===0 && hoje.getDate() < nascD.getDate())) idade--;
+    return idade;
+  };
+
+  const indicacoesDisponiveis = useMemo(() => {
+    const set = new Set();
+    triagens.forEach(t => {
+      (t.indicacoes_terapeuticas||"").split(",").forEach(s => {
+        const v = s.trim();
+        if(v) set.add(v);
+      });
+    });
+    return [...set].sort();
+  }, [triagens]);
+
   const filtradas = useMemo(() => {
     const termo = q.trim().toLowerCase();
     const termoDigits = normDigits(termo);
     return triagens.filter(t => {
       if(fPrioridade && t.escala_prioridade !== fPrioridade) return false;
+      if(fIndicacao && !(t.indicacoes_terapeuticas||"").includes(fIndicacao)) return false;
+      const idade = calcIdade(t.nascimento);
+      if(fIdadeMin !== "" && (idade === null || idade < parseInt(fIdadeMin,10))) return false;
+      if(fIdadeMax !== "" && (idade === null || idade > parseInt(fIdadeMax,10))) return false;
       if(!termo) return true;
       const nomeMatch = (t.nome||"").toLowerCase().includes(termo);
-      const unidadeMatch = (t.unidade||"").toLowerCase().includes(termo);
       const cpfMatch = termoDigits.length >= 3 && normDigits(t.cpf_cns).includes(termoDigits);
-      return nomeMatch || unidadeMatch || cpfMatch;
+      return nomeMatch || cpfMatch;
     });
-  }, [triagens, q, fPrioridade]);
+  }, [triagens, q, fPrioridade, fIndicacao, fIdadeMin, fIdadeMax]);
 
   const corPrioridade = (p) => p==="Alta" ? {bg:'var(--danger-soft)', color:'var(--danger)', border:'#fecaca'}
     : p==="Moderada" ? {bg:'var(--warn-soft)', color:'var(--warn)', border:'#fde68a'}
@@ -1498,13 +1616,19 @@ function TriagensTab({ notify }){
     <div className="section-title">Avaliações / Triagens</div>
     <p style={{color:'var(--muted)', fontSize:13, marginBottom:14}}>Consulta às triagens importadas da planilha de avaliação. Somente leitura — {triagens.length} registros carregados.</p>
     <div className="toolbar" style={{marginBottom:16}}>
-      <input placeholder="Buscar por nome, CPF/CNS ou unidade..." value={q} onChange={e=>setQ(e.target.value)} />
+      <input placeholder="Buscar por nome ou CPF/CNS..." value={q} onChange={e=>setQ(e.target.value)} />
       <select style={{maxWidth:200}} value={fPrioridade} onChange={e=>setFPrioridade(e.target.value)}>
         <option value="">Prioridade (todas)</option>
         <option value="Alta">Alta</option>
         <option value="Moderada">Moderada</option>
         <option value="Leve">Leve</option>
       </select>
+      <select style={{maxWidth:260}} value={fIndicacao} onChange={e=>setFIndicacao(e.target.value)}>
+        <option value="">Indicações terapêuticas (todas)</option>
+        {indicacoesDisponiveis.map(i => <option key={i} value={i}>{i}</option>)}
+      </select>
+      <input type="number" min="0" placeholder="Idade mín." style={{maxWidth:110}} value={fIdadeMin} onChange={e=>setFIdadeMin(e.target.value)} />
+      <input type="number" min="0" placeholder="Idade máx." style={{maxWidth:110}} value={fIdadeMax} onChange={e=>setFIdadeMax(e.target.value)} />
       <span className="count-pill">{filtradas.length} resultado{filtradas.length!==1?"s":""}</span>
     </div>
 
@@ -1512,7 +1636,7 @@ function TriagensTab({ notify }){
       filtradas.length === 0 ? <p style={{color:'var(--muted)'}}>Nenhuma avaliação encontrada.</p> : (
         <table>
           <thead>
-            <tr><th>Paciente</th><th>Nascimento</th><th>Data da avaliação</th><th>Unidade</th><th>Avaliador(a)</th><th>Prioridade</th></tr>
+            <tr><th>Paciente</th><th>Nascimento</th><th>Data da avaliação</th><th>Indicações terapêuticas</th><th>Prioridade</th></tr>
           </thead>
           <tbody>
             {filtradas.map(t => (
@@ -1520,8 +1644,7 @@ function TriagensTab({ notify }){
                 <td style={{fontWeight:600}}>{t.nome || "—"}</td>
                 <td>{fmt(t.nascimento)}</td>
                 <td>{fmt(t.data_avaliacao)}</td>
-                <td>{t.unidade || "—"}</td>
-                <td>{t.avaliador || "—"}</td>
+                <td style={{maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={t.indicacoes_terapeuticas || ""}>{t.indicacoes_terapeuticas || "—"}</td>
                 <td><PrioridadeBadge p={t.escala_prioridade}/></td>
               </tr>
             ))}
@@ -3791,6 +3914,7 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
+
 
 
 
