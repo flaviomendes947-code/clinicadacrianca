@@ -1521,7 +1521,7 @@ function AssistenteIATab({ notify }){
 }
 
 // ── Avaliações / Triagens importadas (somente consulta) ──────────────────────
-function TriagensTab({ notify }){
+function TriagensTab({ notify, patients }){
   const [triagens, setTriagens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -1573,6 +1573,27 @@ function TriagensTab({ notify }){
     });
     return [...set].sort();
   }, [triagens]);
+
+  // ── Verifica se a criança da triagem já está cadastrada como paciente ──────
+  const acompanhamentoSets = useMemo(() => {
+    const cpfSet = new Set();
+    const nomeNascSet = new Set();
+    (patients||[]).forEach(p => {
+      const cpfP = normDigits(p.cpf);
+      if(cpfP) cpfSet.add(cpfP);
+      const nomeP = (p.nome||"").trim().toLowerCase();
+      if(nomeP && p.nascimento) nomeNascSet.add(nomeP + "|" + p.nascimento);
+    });
+    return { cpfSet, nomeNascSet };
+  }, [patients]);
+
+  const isAcompanhada = (t) => {
+    const cpfT = normDigits(t.cpf_cns);
+    if(cpfT && acompanhamentoSets.cpfSet.has(cpfT)) return true;
+    const nomeT = (t.nome||"").trim().toLowerCase();
+    if(nomeT && t.nascimento && acompanhamentoSets.nomeNascSet.has(nomeT + "|" + t.nascimento)) return true;
+    return false;
+  };
 
   const filtradas = useMemo(() => {
     const termo = q.trim().toLowerCase();
@@ -1636,16 +1657,22 @@ function TriagensTab({ notify }){
       filtradas.length === 0 ? <p style={{color:'var(--muted)'}}>Nenhuma avaliação encontrada.</p> : (
         <table>
           <thead>
-            <tr><th>Paciente</th><th>Nascimento</th><th>Data da avaliação</th><th>Indicações terapêuticas</th><th>Prioridade</th></tr>
+            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Data da avaliação</th><th>Indicações terapêuticas</th><th>Prioridade</th><th>Acompanhada pela clínica</th></tr>
           </thead>
           <tbody>
             {filtradas.map(t => (
               <tr key={t.id} style={{cursor:'pointer'}} onClick={()=>setAberta(t)}>
                 <td style={{fontWeight:600}}>{t.nome || "—"}</td>
                 <td>{fmt(t.nascimento)}</td>
+                <td>{calcIdade(t.nascimento) !== null ? calcIdade(t.nascimento) : "—"}</td>
                 <td>{fmt(t.data_avaliacao)}</td>
                 <td style={{maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={t.indicacoes_terapeuticas || ""}>{t.indicacoes_terapeuticas || "—"}</td>
                 <td><PrioridadeBadge p={t.escala_prioridade}/></td>
+                <td>
+                  {isAcompanhada(t)
+                    ? <span style={{ padding:'3px 11px', borderRadius:20, fontSize:11.5, fontWeight:700, background:'var(--ok-soft)', color:'var(--ok)', border:'1px solid #bbf7d0', whiteSpace:'nowrap' }}>SIM</span>
+                    : <span style={{ padding:'3px 11px', borderRadius:20, fontSize:11.5, fontWeight:700, background:'#f1f5f9', color:'#64748b', border:'1px solid #cbd5e1', whiteSpace:'nowrap' }}>NÃO</span>}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1660,7 +1687,9 @@ function TriagensTab({ notify }){
           <div className="profile-avatar">{(aberta.nome||"?").split(" ").slice(0,2).map(w=>w[0]).join("").toUpperCase()}</div>
           <div style={{flex:1}}>
             <h2>{aberta.nome}</h2>
-            <p>Avaliação em {fmt(aberta.data_avaliacao)} <PrioridadeBadge p={aberta.escala_prioridade}/></p>
+            <p>Avaliação em {fmt(aberta.data_avaliacao)} <PrioridadeBadge p={aberta.escala_prioridade}/> {isAcompanhada(aberta)
+              ? <span style={{ padding:'3px 11px', borderRadius:20, fontSize:11.5, fontWeight:700, background:'var(--ok-soft)', color:'var(--ok)', border:'1px solid #bbf7d0', whiteSpace:'nowrap' }}>Acompanhada pela clínica</span>
+              : <span style={{ padding:'3px 11px', borderRadius:20, fontSize:11.5, fontWeight:700, background:'#f1f5f9', color:'#64748b', border:'1px solid #cbd5e1', whiteSpace:'nowrap' }}>Não acompanhada pela clínica</span>}</p>
           </div>
           <button className="icon-btn" onClick={()=>setAberta(null)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -3899,7 +3928,7 @@ function App(){
     {tab==="filtros" && <FiltrosTab configs={filterCfg.configs} loading={filterCfg.loading} add={filterCfg.add} remove={filterCfg.remove} move={filterCfg.move} notify={notify} tiposTerapia={tiposTerapia}/>}
     {tab==="exportar" && <ExportTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} notify={notify}/>}
     {tab==="assistente-ia" && <AssistenteIATab notify={notify}/>}
-    {tab==="avaliacoes" && <TriagensTab notify={notify}/>}
+    {tab==="avaliacoes" && <TriagensTab notify={notify} patients={pat.items}/>}
     {tab==="usuarios" && isAdmin && <UsersTab usersHook={usersHook} currentUser={currentUser} notify={notify}/>}
     {tab==="minha-conta" && <MyAccountTab currentUser={currentUser} usersHook={usersHook} notify={notify}/>}
 
@@ -3914,6 +3943,7 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
+
 
 
 
