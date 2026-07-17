@@ -3514,7 +3514,7 @@ function App(){
     {id:"cadastro", label: editingPatient ? "Editando cadastro" : "Novo cadastro", icon:<IconPlus/>},
     {id:"pacientes", label:"Pacientes Cadastrados", icon:<IconSearch/>},
     {id:"lista-espera", label:`Lista de espera por terapia (${pat.items.filter(p=>p.status==="Lista de espera" || (p.terapiasNecessarias||[]).some(t=>t.status==="Lista de espera")).length})`, icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
-    {id:"quantitativo", label:"Pacientes por Terapia", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>},
+    {id:"quantitativo", label:"Pacientes Ativos por Terapia", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>},
     {id:"por-profissional", label:"Pacientes por profissional", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>},
     {id:"profissionais", label:"Profissionais", icon:<IconUsers/>},
     {id:"terapias", label:"Registrar Terapias", icon:<IconUsers/>},
@@ -3595,6 +3595,7 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
+
 
 
 
