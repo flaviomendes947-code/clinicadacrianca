@@ -1,3 +1,11 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
+<title>Sistema de cadastro e monitoramento de pacientes</title>
+</head>
+<body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -292,6 +300,82 @@
   .stat-card.green .stat-num{ color:var(--ok); }
   .stat-card.warn .stat-num{ color:var(--warn); }
   .stat-card.red .stat-num{ color:var(--danger); }
+
+  /* ══════════════════════════════════════════════════════════════════
+     RESPONSIVIDADE — celular e tablet
+     ══════════════════════════════════════════════════════════════════ */
+
+  /* Tabelas: em telas estreitas, rolagem horizontal em vez de espremer */
+  @media(max-width:900px){
+    table{ display:block; width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:10px; }
+    table thead, table tbody{ display:table; width:100%; }
+    th, td{ white-space:nowrap; }
+  }
+
+  /* Tablet */
+  @media(max-width:900px){
+    #app-root{ padding:18px 14px 50px; }
+    .card{ padding:18px; }
+    .profile-body{ padding:18px; }
+    .profile-card{ padding:16px 18px; }
+    .stat-card, .dash-card{ padding:16px 18px; }
+  }
+
+  /* Celular */
+  @media(max-width:600px){
+    #app-root{ padding:14px 10px 44px; }
+    .card{ padding:14px; border-radius:12px; }
+
+    .header{ flex-wrap:wrap; gap:10px; }
+    .header .logo{ width:42px; height:42px; border-radius:11px; }
+    .header .logo svg{ width:20px; height:20px; }
+    .header h1{ font-size:15.5px; line-height:1.3; }
+    .header p{ display:none; }
+    .header > div[style*="flex:1"]{ min-width:0; }
+    .user-chip{ padding:5px 10px 5px 6px; }
+    .user-chip > div:last-child{ display:none; }
+    .notif-bell{ width:38px; height:38px; }
+    .header .btn-secondary{ padding:8px 10px !important; }
+    .header .btn-secondary svg{ margin-right:0 !important; }
+    .header .btn-secondary{ font-size:0; }
+
+    .tabs{ flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; gap:6px; margin-bottom:18px; padding-bottom:6px; scrollbar-width:thin; }
+    .tab{ flex-shrink:0; padding:9px 13px; font-size:13px; white-space:nowrap; }
+
+    .section-title{ font-size:11px; margin:18px 0 10px; }
+
+    /* Toolbars: campos de busca/filtro em coluna, ocupando a largura toda */
+    .toolbar{ flex-direction:column; align-items:stretch; gap:8px; }
+    .toolbar input, .toolbar select{ max-width:100% !important; width:100%; }
+    .toolbar .count-pill{ align-self:flex-start; }
+
+    input, select, textarea{ font-size:16px; } /* evita zoom automático no iOS */
+
+    .actions-row{ flex-direction:column; align-items:stretch; }
+    .actions-row .btn{ width:100%; text-align:center; }
+
+    .grid-3, .grid-2{ grid-template-columns:1fr; }
+    .stat-grid, .dash-grid{ grid-template-columns:1fr 1fr; gap:10px; }
+    .profile-grid, .profile-grid-2{ grid-template-columns:1fr; }
+    .pts-reav{ grid-template-columns:1fr; }
+
+    .profile-drawer{ width:100%; }
+    .profile-topbar{ padding:14px 16px; }
+    .profile-avatar{ width:44px; height:44px; font-size:16px; }
+    .profile-topbar h2{ font-size:16px; }
+
+    .modal{ padding:20px; border-radius:14px; }
+
+    .notif-panel{ width:100%; max-width:100vw; }
+
+    .row-actions{ flex-wrap:wrap; }
+
+    .stat-card .stat-num, .dash-card-num{ font-size:26px; }
+  }
+
+  @media(max-width:420px){
+    .stat-grid, .dash-grid{ grid-template-columns:1fr; }
+  }
 </style>
 
 <script type="text/babel" data-presets="react">
@@ -3963,8 +4047,8 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
-
-
+</body>
+</html>
 
 
 
