@@ -1966,7 +1966,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
                 <td onClick={e=>e.stopPropagation()}>
                   <select value={t.profissional_agendado_id || ""} disabled={salvandoProfissional===t.id}
                     onChange={e=>salvarProfissionalAgendado(t, e.target.value)}
-                    style={{padding:'6px 8px', fontSize:12.5, maxWidth:170, opacity: salvandoProfissional===t.id ? 0.6 : 1}}>
+                    style={{padding:'6px 8px', fontSize:12.5, width:'auto', minWidth:100, opacity: salvandoProfissional===t.id ? 0.6 : 1}}>
                     <option value="">Selecionar...</option>
                     {(professionals||[]).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                   </select>
@@ -1974,7 +1974,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
                 <td onClick={e=>e.stopPropagation()}>
                   <select value={t.terapia_agendada || ""} disabled={salvandoTerapiaAgendada===t.id}
                     onChange={e=>salvarTerapiaAgendada(t, e.target.value)}
-                    style={{padding:'6px 8px', fontSize:12.5, maxWidth:170, opacity: salvandoTerapiaAgendada===t.id ? 0.6 : 1}}>
+                    style={{padding:'6px 8px', fontSize:12.5, width:'auto', minWidth:100, opacity: salvandoTerapiaAgendada===t.id ? 0.6 : 1}}>
                     <option value="">Selecionar...</option>
                     {(tiposTerapia||[]).map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
                   </select>
@@ -4280,6 +4280,8 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
+
+
 
 
 
