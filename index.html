@@ -1770,13 +1770,96 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
       {key:'indicacoes_terapeuticas', label:'Indicações terapêuticas'},
       {key:'escala_prioridade', label:'Prioridade'},
       {key:'apto_atividades_grupais', label:'Apto a atividades grupais'},
-      {key:'agendamento', label:'Agendamento'},
+      {key:'agendamento', label:'1º Primeiro Agendamento'},
       {key:'profissional_agendado', label:'Profissional'},
       {key:'terapia_agendada', label:'Terapia agendada'},
       {key:'acompanhada', label:'Acompanhada pela clínica'}
     ];
     downloadCSV(`avaliacao-da-triagem-${new Date().toISOString().slice(0,10)}.csv`, toCSV(rows, headers));
     notify(`Exportação de ${rows.length} criança${rows.length!==1?"s":""} baixada`);
+  };
+
+  const exportarCriancasExcel = () => {
+    if(typeof XLSX === "undefined"){ notify("Biblioteca de Excel não carregou. Verifique sua conexão."); return; }
+    const rows = filtradas.map(t => ({
+      "Nome": t.nome || "",
+      "Nascimento": fmt(t.nascimento),
+      "Idade": calcIdade(t.nascimento) !== null ? calcIdade(t.nascimento) : "",
+      "Nome da mãe": t.nome_mae || "",
+      "CPF/CNS": t.cpf_cns || "",
+      "Telefone": t.telefone || "",
+      "Unidade": t.unidade || "",
+      "Data da avaliação": fmt(t.data_avaliacao),
+      "Indicações terapêuticas": t.indicacoes_terapeuticas || "",
+      "Prioridade": t.escala_prioridade || "",
+      "Apto a atividades grupais": t.apto_atividades_grupais || "",
+      "1º Primeiro Agendamento": fmt(t.agendamento),
+      "Profissional": profNome(t.profissional_agendado_id),
+      "Terapia agendada": t.terapia_agendada || "",
+      "Acompanhada pela clínica": isAcompanhada(t) ? "SIM" : "NÃO"
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "Avaliação da triagem");
+    XLSX.writeFile(wb, `avaliacao-da-triagem-${new Date().toISOString().slice(0,10)}.xlsx`);
+    notify(`Exportação de ${rows.length} criança${rows.length!==1?"s":""} baixada em Excel`);
+  };
+
+  // ── Exportação apenas com as colunas visíveis na tabela ─────────────────────
+  const linhasTabelaVisivel = () => filtradas.map(t => ({
+    "Paciente": t.nome || "—",
+    "Nascimento": fmt(t.nascimento),
+    "Idade": calcIdade(t.nascimento) !== null ? calcIdade(t.nascimento) : "—",
+    "Data da avaliação": fmt(t.data_avaliacao),
+    "Indicações terapêuticas": t.indicacoes_terapeuticas || "—",
+    "Prioridade": t.escala_prioridade || "Não informado",
+    "Acompanhada pela clínica": isAcompanhada(t) ? "SIM" : "NÃO",
+    "1º Primeiro Agendamento": fmt(t.agendamento),
+    "Profissional": profNome(t.profissional_agendado_id) || "—",
+    "Terapia agendada": t.terapia_agendada || "—"
+  }));
+
+  const exportarTabelaVisivelExcel = () => {
+    if(typeof XLSX === "undefined"){ notify("Biblioteca de Excel não carregou. Verifique sua conexão."); return; }
+    const rows = linhasTabelaVisivel();
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "Avaliação da triagem");
+    XLSX.writeFile(wb, `tabela-avaliacao-da-triagem-${new Date().toISOString().slice(0,10)}.xlsx`);
+    notify(`Tabela exportada em Excel (${rows.length} registro${rows.length!==1?"s":""})`);
+  };
+
+  const exportarTabelaVisivelPDF = () => {
+    if(typeof window.jspdf === "undefined"){ notify("Biblioteca de PDF não carregou. Verifique sua conexão."); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape" });
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    let y = 14;
+
+    doc.setFontSize(14); doc.setFont(undefined, "bold");
+    doc.text("Avaliação da triagem", 14, y);
+    doc.setFontSize(9); doc.setFont(undefined, "normal");
+    y += 6;
+    doc.text(`Gerado em ${hoje} · ${filtradas.length} resultado${filtradas.length!==1?"s":""}`, 14, y);
+    y += 6;
+
+    const rows = linhasTabelaVisivel();
+    doc.autoTable({
+      startY: y,
+      head: [["Paciente","Nascimento","Idade","Data da avaliação","Indicações terapêuticas","Prioridade","Acompanhada pela clínica","1º Primeiro Agendamento","Profissional","Terapia agendada"]],
+      body: rows.map(r => [
+        r["Paciente"], r["Nascimento"], r["Idade"], r["Data da avaliação"], r["Indicações terapêuticas"],
+        r["Prioridade"], r["Acompanhada pela clínica"], r["1º Primeiro Agendamento"], r["Profissional"], r["Terapia agendada"]
+      ]),
+      theme: "grid",
+      headStyles: { fillColor: [59,111,240], fontSize: 8 },
+      styles: { fontSize: 7.5, cellPadding: 2, overflow: "linebreak" },
+      columnStyles: { 4: { cellWidth: 55 } },
+      margin: { left: 10, right: 10 },
+    });
+
+    doc.save(`tabela-avaliacao-da-triagem-${new Date().toISOString().slice(0,10)}.pdf`);
+    notify("Tabela exportada em PDF");
   };
 
   const filtradas = useMemo(() => {
@@ -1846,13 +1929,20 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
       {fAgendamento && <button className="btn btn-secondary" style={{padding:'10px 12px'}} onClick={()=>setFAgendamento("")}>Limpar data</button>}
       <span className="count-pill">{filtradas.length} resultado{filtradas.length!==1?"s":""}</span>
       <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={exportarCrianças} disabled={filtradas.length===0}>⬇️ Exportar crianças (CSV)</button>
+      <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={exportarCriancasExcel} disabled={filtradas.length===0}>📊 Exportar crianças (Excel)</button>
+    </div>
+
+    <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:16}}>
+      <span style={{fontSize:12.5, color:'var(--muted)', fontWeight:600}}>Exportar apenas os dados visíveis na tabela abaixo:</span>
+      <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={exportarTabelaVisivelExcel} disabled={filtradas.length===0}>📊 Excel (tabela)</button>
+      <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={exportarTabelaVisivelPDF} disabled={filtradas.length===0}>📄 PDF (tabela)</button>
     </div>
 
     {loading ? <p style={{color:'var(--muted)'}}>Carregando triagens…</p> : (
       filtradas.length === 0 ? <p style={{color:'var(--muted)'}}>Nenhuma avaliação encontrada.</p> : (
         <table>
           <thead>
-            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Data da avaliação</th><th>Indicações terapêuticas</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>Agendamento</th><th>Profissional</th><th>Terapia agendada</th></tr>
+            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Data da avaliação</th><th>Indicações terapêuticas</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>1º Primeiro Agendamento</th><th>Profissional</th><th>Terapia agendada</th></tr>
           </thead>
           <tbody>
             {filtradas.map(t => (
@@ -4190,6 +4280,7 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
+
 
 
 
