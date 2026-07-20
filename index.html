@@ -1630,8 +1630,12 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
   const [fAgendamento, setFAgendamento] = useState("");
   const [aberta, setAberta] = useState(null);
   const [salvandoAgendamento, setSalvandoAgendamento] = useState(null);
-  const [salvandoProfissional, setSalvandoProfissional] = useState(null);
-  const [salvandoTerapiaAgendada, setSalvandoTerapiaAgendada] = useState(null);
+  const [agendamentos, setAgendamentos] = useState([]);
+  const [addingAgendamentoFor, setAddingAgendamentoFor] = useState(null);
+  const [novoAgProf, setNovoAgProf] = useState("");
+  const [novoAgTerapia, setNovoAgTerapia] = useState("");
+  const [salvandoNovoAg, setSalvandoNovoAg] = useState(false);
+  const [removendoAgId, setRemovendoAgId] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -1640,6 +1644,9 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
         const { data, error } = await sb.from("triagens").select("*").order("data_avaliacao", { ascending:false });
         if(error) throw error;
         setTriagens(data || []);
+        const { data: agData, error: agError } = await sb.from("triagem_agendamentos").select("*").order("created_at", { ascending:true });
+        if(agError) throw agError;
+        setAgendamentos(agData || []);
       }catch(e){
         setErro(e.message || String(e));
         if(notify) notify("Não foi possível carregar as triagens");
@@ -1647,6 +1654,68 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
       setLoading(false);
     })();
   }, []);
+
+  const agendamentosDe = (triagemId) => agendamentos.filter(a => a.triagem_id === triagemId);
+
+  const adicionarAgendamento = async (triagemId) => {
+    if(!novoAgProf && !novoAgTerapia){ if(notify) notify("Selecione ao menos o profissional ou a terapia"); return; }
+    setSalvandoNovoAg(true);
+    try{
+      const { data, error } = await sb.from("triagem_agendamentos")
+        .insert({ triagem_id: triagemId, profissional_id: novoAgProf || null, terapia: novoAgTerapia || null })
+        .select().single();
+      if(error) throw error;
+      setAgendamentos(prev => [...prev, data]);
+      setNovoAgProf(""); setNovoAgTerapia(""); setAddingAgendamentoFor(null);
+      if(notify) notify("Agendamento adicionado");
+    }catch(e){
+      if(notify) notify("Não foi possível adicionar o agendamento: " + (e.message || e));
+    }
+    setSalvandoNovoAg(false);
+  };
+
+  const removerAgendamento = async (id) => {
+    setRemovendoAgId(id);
+    try{
+      const { error } = await sb.from("triagem_agendamentos").delete().eq("id", id);
+      if(error) throw error;
+      setAgendamentos(prev => prev.filter(a => a.id !== id));
+      if(notify) notify("Agendamento removido");
+    }catch(e){
+      if(notify) notify("Não foi possível remover o agendamento: " + (e.message || e));
+    }
+    setRemovendoAgId(null);
+  };
+
+  const AgendamentosCell = ({ triagemId }) => (
+    <div style={{display:'flex', flexDirection:'column', gap:5, minWidth:200}} onClick={e=>e.stopPropagation()}>
+      {agendamentosDe(triagemId).map(a => (
+        <span key={a.id} style={{display:'inline-flex', alignItems:'center', gap:6, background:'var(--panel2)', border:'1px solid var(--border)', borderRadius:20, padding:'3px 9px', fontSize:11.5, width:'fit-content'}}>
+          {profNome(a.profissional_id) || "—"}{a.terapia ? ` · ${a.terapia}` : ""}
+          <button onClick={()=>removerAgendamento(a.id)} disabled={removendoAgId===a.id}
+            style={{border:'none', background:'transparent', cursor:'pointer', color:'var(--danger)', fontWeight:700, padding:0, lineHeight:1, fontSize:13}} title="Remover">×</button>
+        </span>
+      ))}
+      {addingAgendamentoFor === triagemId ? (
+        <div style={{display:'flex', gap:4, flexWrap:'wrap', alignItems:'center'}}>
+          <select value={novoAgProf} onChange={e=>setNovoAgProf(e.target.value)} style={{fontSize:11.5, padding:'4px 6px', maxWidth:130}}>
+            <option value="">Profissional...</option>
+            {(professionals||[]).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+          </select>
+          <select value={novoAgTerapia} onChange={e=>setNovoAgTerapia(e.target.value)} style={{fontSize:11.5, padding:'4px 6px', maxWidth:120}}>
+            <option value="">Terapia...</option>
+            {(tiposTerapia||[]).map(tp => <option key={tp} value={tp}>{tp}</option>)}
+          </select>
+          <button className="btn btn-secondary" disabled={salvandoNovoAg} onClick={()=>adicionarAgendamento(triagemId)} style={{padding:'4px 9px', fontSize:11.5}}>OK</button>
+          <button onClick={()=>{setAddingAgendamentoFor(null); setNovoAgProf(""); setNovoAgTerapia("");}}
+            style={{padding:'4px 6px', fontSize:11.5, border:'none', background:'transparent', cursor:'pointer', color:'var(--muted)'}}>Cancelar</button>
+        </div>
+      ) : (
+        <button onClick={()=>setAddingAgendamentoFor(triagemId)}
+          style={{alignSelf:'flex-start', fontSize:11.5, border:'1px dashed var(--border)', background:'transparent', borderRadius:20, padding:'3px 11px', cursor:'pointer', color:'var(--accent)'}}>+ agendar</button>
+      )}
+    </div>
+  );
 
   const normDigits = (s) => (s||"").replace(/\D/g, "");
   const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
@@ -1712,32 +1781,13 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
 
   const profNome = (id) => { const p = (professionals||[]).find(x => x.id === id); return p ? p.nome : ""; };
 
-  const salvarProfissionalAgendado = async (t, novoId) => {
-    setSalvandoProfissional(t.id);
-    try{
-      const { error } = await sb.from("triagens").update({ profissional_agendado_id: novoId || null }).eq("id", t.id);
-      if(error) throw error;
-      setTriagens(prev => prev.map(x => x.id === t.id ? {...x, profissional_agendado_id: novoId || null} : x));
-      setAberta(prev => prev && prev.id === t.id ? {...prev, profissional_agendado_id: novoId || null} : prev);
-      if(notify) notify(novoId ? "Profissional salvo" : "Profissional removido");
-    }catch(e){
-      if(notify) notify("Não foi possível salvar o profissional: " + (e.message || e));
-    }
-    setSalvandoProfissional(null);
-  };
-
-  const salvarTerapiaAgendada = async (t, novoTipo) => {
-    setSalvandoTerapiaAgendada(t.id);
-    try{
-      const { error } = await sb.from("triagens").update({ terapia_agendada: novoTipo || null }).eq("id", t.id);
-      if(error) throw error;
-      setTriagens(prev => prev.map(x => x.id === t.id ? {...x, terapia_agendada: novoTipo || null} : x));
-      setAberta(prev => prev && prev.id === t.id ? {...prev, terapia_agendada: novoTipo || null} : prev);
-      if(notify) notify(novoTipo ? "Terapia agendada salva" : "Terapia agendada removida");
-    }catch(e){
-      if(notify) notify("Não foi possível salvar a terapia agendada: " + (e.message || e));
-    }
-    setSalvandoTerapiaAgendada(null);
+  const agendamentosTexto = (triagemId) => {
+    const lista = agendamentosDe(triagemId);
+    if(!lista.length) return "";
+    return lista.map(a => {
+      const nome = profNome(a.profissional_id) || "—";
+      return a.terapia ? `${nome} (${a.terapia})` : nome;
+    }).join("; ");
   };
 
   const exportarCrianças = () => {
@@ -1754,8 +1804,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
       escala_prioridade: t.escala_prioridade || "",
       apto_atividades_grupais: t.apto_atividades_grupais || "",
       agendamento: fmt(t.agendamento),
-      profissional_agendado: profNome(t.profissional_agendado_id),
-      terapia_agendada: t.terapia_agendada || "",
+      agendamentos: agendamentosTexto(t.id),
       acompanhada: isAcompanhada(t) ? "SIM" : "NÃO"
     }));
     const headers = [
@@ -1771,8 +1820,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
       {key:'escala_prioridade', label:'Prioridade'},
       {key:'apto_atividades_grupais', label:'Apto a atividades grupais'},
       {key:'agendamento', label:'1º Primeiro Agendamento'},
-      {key:'profissional_agendado', label:'Profissional'},
-      {key:'terapia_agendada', label:'Terapia agendada'},
+      {key:'agendamentos', label:'Profissionais / terapias agendadas'},
       {key:'acompanhada', label:'Acompanhada pela clínica'}
     ];
     downloadCSV(`avaliacao-da-triagem-${new Date().toISOString().slice(0,10)}.csv`, toCSV(rows, headers));
@@ -1794,8 +1842,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
       "Prioridade": t.escala_prioridade || "",
       "Apto a atividades grupais": t.apto_atividades_grupais || "",
       "1º Primeiro Agendamento": fmt(t.agendamento),
-      "Profissional": profNome(t.profissional_agendado_id),
-      "Terapia agendada": t.terapia_agendada || "",
+      "Profissionais / terapias agendadas": agendamentosTexto(t.id),
       "Acompanhada pela clínica": isAcompanhada(t) ? "SIM" : "NÃO"
     }));
     const wb = XLSX.utils.book_new();
@@ -1815,8 +1862,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     "Prioridade": t.escala_prioridade || "Não informado",
     "Acompanhada pela clínica": isAcompanhada(t) ? "SIM" : "NÃO",
     "1º Primeiro Agendamento": fmt(t.agendamento),
-    "Profissional": profNome(t.profissional_agendado_id) || "—",
-    "Terapia agendada": t.terapia_agendada || "—"
+    "Profissionais / terapias agendadas": agendamentosTexto(t.id) || "—"
   }));
 
   const exportarTabelaVisivelExcel = () => {
@@ -1846,14 +1892,15 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     const rows = linhasTabelaVisivel();
     doc.autoTable({
       startY: y,
-      head: [["Paciente","Nascimento","Idade","Telefone","Data da avaliação","Prioridade","Acompanhada pela clínica","1º Primeiro Agendamento","Profissional","Terapia agendada"]],
+      head: [["Paciente","Nascimento","Idade","Telefone","Data da avaliação","Prioridade","Acompanhada pela clínica","1º Primeiro Agendamento","Profissionais / terapias agendadas"]],
       body: rows.map(r => [
         r["Paciente"], r["Nascimento"], r["Idade"], r["Telefone"], r["Data da avaliação"],
-        r["Prioridade"], r["Acompanhada pela clínica"], r["1º Primeiro Agendamento"], r["Profissional"], r["Terapia agendada"]
+        r["Prioridade"], r["Acompanhada pela clínica"], r["1º Primeiro Agendamento"], r["Profissionais / terapias agendadas"]
       ]),
       theme: "grid",
       headStyles: { fillColor: [59,111,240], fontSize: 8 },
       styles: { fontSize: 7.5, cellPadding: 2, overflow: "linebreak" },
+      columnStyles: { 8: { cellWidth: 60 } },
       margin: { left: 10, right: 10 },
     });
 
@@ -1942,7 +1989,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
         <div style={{width:'100%', overflowX:'auto', WebkitOverflowScrolling:'touch'}}>
         <table style={{minWidth:950}}>
           <thead>
-            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Telefone</th><th>Data da avaliação</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>1º Primeiro Agendamento</th><th>Profissional</th><th>Terapia agendada</th></tr>
+            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Telefone</th><th>Data da avaliação</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>1º Primeiro Agendamento</th><th>Agendamentos (profissional / terapia)</th></tr>
           </thead>
           <tbody>
             {filtradas.map(t => (
@@ -1963,21 +2010,8 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
                     onChange={e=>salvarAgendamento(t, e.target.value)}
                     style={{padding:'6px 8px', fontSize:12.5, maxWidth:150, opacity: salvandoAgendamento===t.id ? 0.6 : 1}} />
                 </td>
-                <td onClick={e=>e.stopPropagation()}>
-                  <select value={t.profissional_agendado_id || ""} disabled={salvandoProfissional===t.id}
-                    onChange={e=>salvarProfissionalAgendado(t, e.target.value)}
-                    style={{padding:'6px 8px', fontSize:12.5, width:'auto', minWidth:100, maxWidth:220, opacity: salvandoProfissional===t.id ? 0.6 : 1}}>
-                    <option value="">Selecionar...</option>
-                    {(professionals||[]).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                  </select>
-                </td>
-                <td onClick={e=>e.stopPropagation()}>
-                  <select value={t.terapia_agendada || ""} disabled={salvandoTerapiaAgendada===t.id}
-                    onChange={e=>salvarTerapiaAgendada(t, e.target.value)}
-                    style={{padding:'6px 8px', fontSize:12.5, width:'auto', minWidth:100, maxWidth:200, opacity: salvandoTerapiaAgendada===t.id ? 0.6 : 1}}>
-                    <option value="">Selecionar...</option>
-                    {(tiposTerapia||[]).map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
-                  </select>
+                <td>
+                  <AgendamentosCell triagemId={t.id} />
                 </td>
               </tr>
             ))}
@@ -2035,23 +2069,9 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
                   onChange={e=>salvarAgendamento(aberta, e.target.value)}
                   style={{maxWidth:200, opacity: salvandoAgendamento===aberta.id ? 0.6 : 1}} />
               </div>
-              <div>
-                <label style={{display:'block', fontSize:11.5, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:6}}>Profissional</label>
-                <select value={aberta.profissional_agendado_id || ""} disabled={salvandoProfissional===aberta.id}
-                  onChange={e=>salvarProfissionalAgendado(aberta, e.target.value)}
-                  style={{maxWidth:240, opacity: salvandoProfissional===aberta.id ? 0.6 : 1}}>
-                  <option value="">Selecionar...</option>
-                  {(professionals||[]).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:11.5, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:6}}>Terapia agendada</label>
-                <select value={aberta.terapia_agendada || ""} disabled={salvandoTerapiaAgendada===aberta.id}
-                  onChange={e=>salvarTerapiaAgendada(aberta, e.target.value)}
-                  style={{maxWidth:240, opacity: salvandoTerapiaAgendada===aberta.id ? 0.6 : 1}}>
-                  <option value="">Selecionar...</option>
-                  {(tiposTerapia||[]).map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
-                </select>
+              <div style={{gridColumn:'1 / -1'}}>
+                <label style={{display:'block', fontSize:11.5, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:6}}>Profissionais / terapias agendadas</label>
+                <AgendamentosCell triagemId={aberta.id} />
               </div>
             </div>
           </div>
