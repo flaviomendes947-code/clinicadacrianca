@@ -1617,7 +1617,7 @@ function AssistenteIATab({ notify }){
 }
 
 // ── Avaliações / Triagens importadas (somente consulta) ──────────────────────
-function TriagensTab({ notify, patients }){
+function TriagensTab({ notify, patients, professionals, tiposTerapia }){
   const [triagens, setTriagens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -1630,6 +1630,8 @@ function TriagensTab({ notify, patients }){
   const [fAgendamento, setFAgendamento] = useState("");
   const [aberta, setAberta] = useState(null);
   const [salvandoAgendamento, setSalvandoAgendamento] = useState(null);
+  const [salvandoProfissional, setSalvandoProfissional] = useState(null);
+  const [salvandoTerapiaAgendada, setSalvandoTerapiaAgendada] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -1708,6 +1710,36 @@ function TriagensTab({ notify, patients }){
     setSalvandoAgendamento(null);
   };
 
+  const profNome = (id) => { const p = (professionals||[]).find(x => x.id === id); return p ? p.nome : ""; };
+
+  const salvarProfissionalAgendado = async (t, novoId) => {
+    setSalvandoProfissional(t.id);
+    try{
+      const { error } = await sb.from("triagens").update({ profissional_agendado_id: novoId || null }).eq("id", t.id);
+      if(error) throw error;
+      setTriagens(prev => prev.map(x => x.id === t.id ? {...x, profissional_agendado_id: novoId || null} : x));
+      setAberta(prev => prev && prev.id === t.id ? {...prev, profissional_agendado_id: novoId || null} : prev);
+      if(notify) notify(novoId ? "Profissional salvo" : "Profissional removido");
+    }catch(e){
+      if(notify) notify("Não foi possível salvar o profissional: " + (e.message || e));
+    }
+    setSalvandoProfissional(null);
+  };
+
+  const salvarTerapiaAgendada = async (t, novoTipo) => {
+    setSalvandoTerapiaAgendada(t.id);
+    try{
+      const { error } = await sb.from("triagens").update({ terapia_agendada: novoTipo || null }).eq("id", t.id);
+      if(error) throw error;
+      setTriagens(prev => prev.map(x => x.id === t.id ? {...x, terapia_agendada: novoTipo || null} : x));
+      setAberta(prev => prev && prev.id === t.id ? {...prev, terapia_agendada: novoTipo || null} : prev);
+      if(notify) notify(novoTipo ? "Terapia agendada salva" : "Terapia agendada removida");
+    }catch(e){
+      if(notify) notify("Não foi possível salvar a terapia agendada: " + (e.message || e));
+    }
+    setSalvandoTerapiaAgendada(null);
+  };
+
   const exportarCrianças = () => {
     const rows = filtradas.map(t => ({
       nome: t.nome || "",
@@ -1722,6 +1754,8 @@ function TriagensTab({ notify, patients }){
       escala_prioridade: t.escala_prioridade || "",
       apto_atividades_grupais: t.apto_atividades_grupais || "",
       agendamento: fmt(t.agendamento),
+      profissional_agendado: profNome(t.profissional_agendado_id),
+      terapia_agendada: t.terapia_agendada || "",
       acompanhada: isAcompanhada(t) ? "SIM" : "NÃO"
     }));
     const headers = [
@@ -1737,6 +1771,8 @@ function TriagensTab({ notify, patients }){
       {key:'escala_prioridade', label:'Prioridade'},
       {key:'apto_atividades_grupais', label:'Apto a atividades grupais'},
       {key:'agendamento', label:'Agendamento'},
+      {key:'profissional_agendado', label:'Profissional'},
+      {key:'terapia_agendada', label:'Terapia agendada'},
       {key:'acompanhada', label:'Acompanhada pela clínica'}
     ];
     downloadCSV(`avaliacao-da-triagem-${new Date().toISOString().slice(0,10)}.csv`, toCSV(rows, headers));
@@ -1816,7 +1852,7 @@ function TriagensTab({ notify, patients }){
       filtradas.length === 0 ? <p style={{color:'var(--muted)'}}>Nenhuma avaliação encontrada.</p> : (
         <table>
           <thead>
-            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Data da avaliação</th><th>Indicações terapêuticas</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>Agendamento</th></tr>
+            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Data da avaliação</th><th>Indicações terapêuticas</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>Agendamento</th><th>Profissional</th><th>Terapia agendada</th></tr>
           </thead>
           <tbody>
             {filtradas.map(t => (
@@ -1836,6 +1872,22 @@ function TriagensTab({ notify, patients }){
                   <input type="date" value={t.agendamento || ""} disabled={salvandoAgendamento===t.id}
                     onChange={e=>salvarAgendamento(t, e.target.value)}
                     style={{padding:'6px 8px', fontSize:12.5, maxWidth:150, opacity: salvandoAgendamento===t.id ? 0.6 : 1}} />
+                </td>
+                <td onClick={e=>e.stopPropagation()}>
+                  <select value={t.profissional_agendado_id || ""} disabled={salvandoProfissional===t.id}
+                    onChange={e=>salvarProfissionalAgendado(t, e.target.value)}
+                    style={{padding:'6px 8px', fontSize:12.5, maxWidth:170, opacity: salvandoProfissional===t.id ? 0.6 : 1}}>
+                    <option value="">Selecionar...</option>
+                    {(professionals||[]).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  </select>
+                </td>
+                <td onClick={e=>e.stopPropagation()}>
+                  <select value={t.terapia_agendada || ""} disabled={salvandoTerapiaAgendada===t.id}
+                    onChange={e=>salvarTerapiaAgendada(t, e.target.value)}
+                    style={{padding:'6px 8px', fontSize:12.5, maxWidth:170, opacity: salvandoTerapiaAgendada===t.id ? 0.6 : 1}}>
+                    <option value="">Selecionar...</option>
+                    {(tiposTerapia||[]).map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
+                  </select>
                 </td>
               </tr>
             ))}
@@ -1891,6 +1943,24 @@ function TriagensTab({ notify, patients }){
                 <input type="date" value={aberta.agendamento || ""} disabled={salvandoAgendamento===aberta.id}
                   onChange={e=>salvarAgendamento(aberta, e.target.value)}
                   style={{maxWidth:200, opacity: salvandoAgendamento===aberta.id ? 0.6 : 1}} />
+              </div>
+              <div>
+                <label style={{display:'block', fontSize:11.5, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:6}}>Profissional</label>
+                <select value={aberta.profissional_agendado_id || ""} disabled={salvandoProfissional===aberta.id}
+                  onChange={e=>salvarProfissionalAgendado(aberta, e.target.value)}
+                  style={{maxWidth:240, opacity: salvandoProfissional===aberta.id ? 0.6 : 1}}>
+                  <option value="">Selecionar...</option>
+                  {(professionals||[]).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{display:'block', fontSize:11.5, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:6}}>Terapia agendada</label>
+                <select value={aberta.terapia_agendada || ""} disabled={salvandoTerapiaAgendada===aberta.id}
+                  onChange={e=>salvarTerapiaAgendada(aberta, e.target.value)}
+                  style={{maxWidth:240, opacity: salvandoTerapiaAgendada===aberta.id ? 0.6 : 1}}>
+                  <option value="">Selecionar...</option>
+                  {(tiposTerapia||[]).map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
+                </select>
               </div>
             </div>
           </div>
@@ -4103,7 +4173,7 @@ function App(){
     {tab==="filtros" && <FiltrosTab configs={filterCfg.configs} loading={filterCfg.loading} add={filterCfg.add} remove={filterCfg.remove} move={filterCfg.move} notify={notify} tiposTerapia={tiposTerapia}/>}
     {tab==="exportar" && <ExportTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} notify={notify}/>}
     {tab==="assistente-ia" && <AssistenteIATab notify={notify}/>}
-    {tab==="avaliacoes" && <TriagensTab notify={notify} patients={pat.items}/>}
+    {tab==="avaliacoes" && <TriagensTab notify={notify} patients={pat.items} professionals={pro.items} tiposTerapia={tiposTerapia.tipos}/>}
     {tab==="usuarios" && isAdmin && <UsersTab usersHook={usersHook} currentUser={currentUser} notify={notify}/>}
     {tab==="minha-conta" && <MyAccountTab currentUser={currentUser} usersHook={usersHook} notify={notify}/>}
 
@@ -4120,6 +4190,7 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
+
 
 
 
