@@ -1627,7 +1627,9 @@ function TriagensTab({ notify, patients }){
   const [fIdadeMin, setFIdadeMin] = useState("");
   const [fIdadeMax, setFIdadeMax] = useState("");
   const [fAcompanhada, setFAcompanhada] = useState("");
+  const [fAgendamento, setFAgendamento] = useState("");
   const [aberta, setAberta] = useState(null);
+  const [salvandoAgendamento, setSalvandoAgendamento] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -1692,6 +1694,55 @@ function TriagensTab({ notify, patients }){
     return false;
   };
 
+  const salvarAgendamento = async (t, novaData) => {
+    setSalvandoAgendamento(t.id);
+    try{
+      const { error } = await sb.from("triagens").update({ agendamento: novaData || null }).eq("id", t.id);
+      if(error) throw error;
+      setTriagens(prev => prev.map(x => x.id === t.id ? {...x, agendamento: novaData || null} : x));
+      setAberta(prev => prev && prev.id === t.id ? {...prev, agendamento: novaData || null} : prev);
+      if(notify) notify(novaData ? "Agendamento salvo" : "Agendamento removido");
+    }catch(e){
+      if(notify) notify("Não foi possível salvar o agendamento: " + (e.message || e));
+    }
+    setSalvandoAgendamento(null);
+  };
+
+  const exportarCrianças = () => {
+    const rows = filtradas.map(t => ({
+      nome: t.nome || "",
+      nascimento: fmt(t.nascimento),
+      idade: calcIdade(t.nascimento) !== null ? calcIdade(t.nascimento) : "",
+      nome_mae: t.nome_mae || "",
+      cpf_cns: t.cpf_cns || "",
+      telefone: t.telefone || "",
+      unidade: t.unidade || "",
+      data_avaliacao: fmt(t.data_avaliacao),
+      indicacoes_terapeuticas: t.indicacoes_terapeuticas || "",
+      escala_prioridade: t.escala_prioridade || "",
+      apto_atividades_grupais: t.apto_atividades_grupais || "",
+      agendamento: fmt(t.agendamento),
+      acompanhada: isAcompanhada(t) ? "SIM" : "NÃO"
+    }));
+    const headers = [
+      {key:'nome', label:'Nome'},
+      {key:'nascimento', label:'Nascimento'},
+      {key:'idade', label:'Idade'},
+      {key:'nome_mae', label:'Nome da mãe'},
+      {key:'cpf_cns', label:'CPF/CNS'},
+      {key:'telefone', label:'Telefone'},
+      {key:'unidade', label:'Unidade'},
+      {key:'data_avaliacao', label:'Data da avaliação'},
+      {key:'indicacoes_terapeuticas', label:'Indicações terapêuticas'},
+      {key:'escala_prioridade', label:'Prioridade'},
+      {key:'apto_atividades_grupais', label:'Apto a atividades grupais'},
+      {key:'agendamento', label:'Agendamento'},
+      {key:'acompanhada', label:'Acompanhada pela clínica'}
+    ];
+    downloadCSV(`avaliacao-da-triagem-${new Date().toISOString().slice(0,10)}.csv`, toCSV(rows, headers));
+    notify(`Exportação de ${rows.length} criança${rows.length!==1?"s":""} baixada`);
+  };
+
   const filtradas = useMemo(() => {
     const termo = q.trim().toLowerCase();
     const termoDigits = normDigits(termo);
@@ -1703,12 +1754,13 @@ function TriagensTab({ notify, patients }){
       if(fIdadeMax !== "" && (idade === null || idade > parseInt(fIdadeMax,10))) return false;
       if(fAcompanhada === "sim" && !isAcompanhada(t)) return false;
       if(fAcompanhada === "nao" && isAcompanhada(t)) return false;
+      if(fAgendamento && t.agendamento !== fAgendamento) return false;
       if(!termo) return true;
       const nomeMatch = (t.nome||"").toLowerCase().includes(termo);
       const cpfMatch = termoDigits.length >= 3 && normDigits(t.cpf_cns).includes(termoDigits);
       return nomeMatch || cpfMatch;
     });
-  }, [triagens, q, fPrioridade, fIndicacao, fIdadeMin, fIdadeMax, fAcompanhada, acompanhamentoSets]);
+  }, [triagens, q, fPrioridade, fIndicacao, fIdadeMin, fIdadeMax, fAcompanhada, fAgendamento, acompanhamentoSets]);
 
   const corPrioridade = (p) => p==="Alta" ? {bg:'var(--danger-soft)', color:'var(--danger)', border:'#fecaca'}
     : p==="Moderada" ? {bg:'var(--warn-soft)', color:'var(--warn)', border:'#fde68a'}
@@ -1754,14 +1806,17 @@ function TriagensTab({ notify, patients }){
         <option value="sim">Acompanhada pela clínica: SIM</option>
         <option value="nao">Acompanhada pela clínica: NÃO</option>
       </select>
+      <input type="date" style={{maxWidth:170}} value={fAgendamento} onChange={e=>setFAgendamento(e.target.value)} title="Filtrar por data de agendamento" />
+      {fAgendamento && <button className="btn btn-secondary" style={{padding:'10px 12px'}} onClick={()=>setFAgendamento("")}>Limpar data</button>}
       <span className="count-pill">{filtradas.length} resultado{filtradas.length!==1?"s":""}</span>
+      <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={exportarCrianças} disabled={filtradas.length===0}>⬇️ Exportar crianças (CSV)</button>
     </div>
 
     {loading ? <p style={{color:'var(--muted)'}}>Carregando triagens…</p> : (
       filtradas.length === 0 ? <p style={{color:'var(--muted)'}}>Nenhuma avaliação encontrada.</p> : (
         <table>
           <thead>
-            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Data da avaliação</th><th>Indicações terapêuticas</th><th>Prioridade</th><th>Acompanhada pela clínica</th></tr>
+            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Data da avaliação</th><th>Indicações terapêuticas</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>Agendamento</th></tr>
           </thead>
           <tbody>
             {filtradas.map(t => (
@@ -1776,6 +1831,11 @@ function TriagensTab({ notify, patients }){
                   {isAcompanhada(t)
                     ? <span style={{ padding:'3px 11px', borderRadius:20, fontSize:11.5, fontWeight:700, background:'var(--ok-soft)', color:'var(--ok)', border:'1px solid #bbf7d0', whiteSpace:'nowrap' }}>SIM</span>
                     : <span style={{ padding:'3px 11px', borderRadius:20, fontSize:11.5, fontWeight:700, background:'#f1f5f9', color:'#64748b', border:'1px solid #cbd5e1', whiteSpace:'nowrap' }}>NÃO</span>}
+                </td>
+                <td onClick={e=>e.stopPropagation()}>
+                  <input type="date" value={t.agendamento || ""} disabled={salvandoAgendamento===t.id}
+                    onChange={e=>salvarAgendamento(t, e.target.value)}
+                    style={{padding:'6px 8px', fontSize:12.5, maxWidth:150, opacity: salvandoAgendamento===t.id ? 0.6 : 1}} />
                 </td>
               </tr>
             ))}
@@ -1822,6 +1882,17 @@ function TriagensTab({ notify, patients }){
               <PField label="Escala de prioridade" value={val(aberta.escala_prioridade)}/>
             </div>
             <div style={{marginTop:12}}><PField label="Indicações terapêuticas" value={val(aberta.indicacoes_terapeuticas)}/></div>
+          </div>
+          <div className="profile-card">
+            <h3>📅 Agendamento</h3>
+            <div className="profile-grid">
+              <div>
+                <label style={{display:'block', fontSize:11.5, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:6}}>Data agendada</label>
+                <input type="date" value={aberta.agendamento || ""} disabled={salvandoAgendamento===aberta.id}
+                  onChange={e=>salvarAgendamento(aberta, e.target.value)}
+                  style={{maxWidth:200, opacity: salvandoAgendamento===aberta.id ? 0.6 : 1}} />
+              </div>
+            </div>
           </div>
           <div className="profile-card">
             <h3>📋 Detalhes da triagem</h3>
@@ -4049,6 +4120,7 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
+
 
 
 
