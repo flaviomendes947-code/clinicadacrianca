@@ -1810,8 +1810,8 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     "Paciente": t.nome || "—",
     "Nascimento": fmt(t.nascimento),
     "Idade": calcIdade(t.nascimento) !== null ? calcIdade(t.nascimento) : "—",
+    "Telefone": t.telefone || "—",
     "Data da avaliação": fmt(t.data_avaliacao),
-    "Indicações terapêuticas": t.indicacoes_terapeuticas || "—",
     "Prioridade": t.escala_prioridade || "Não informado",
     "Acompanhada pela clínica": isAcompanhada(t) ? "SIM" : "NÃO",
     "1º Primeiro Agendamento": fmt(t.agendamento),
@@ -1846,15 +1846,14 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     const rows = linhasTabelaVisivel();
     doc.autoTable({
       startY: y,
-      head: [["Paciente","Nascimento","Idade","Data da avaliação","Indicações terapêuticas","Prioridade","Acompanhada pela clínica","1º Primeiro Agendamento","Profissional","Terapia agendada"]],
+      head: [["Paciente","Nascimento","Idade","Telefone","Data da avaliação","Prioridade","Acompanhada pela clínica","1º Primeiro Agendamento","Profissional","Terapia agendada"]],
       body: rows.map(r => [
-        r["Paciente"], r["Nascimento"], r["Idade"], r["Data da avaliação"], r["Indicações terapêuticas"],
+        r["Paciente"], r["Nascimento"], r["Idade"], r["Telefone"], r["Data da avaliação"],
         r["Prioridade"], r["Acompanhada pela clínica"], r["1º Primeiro Agendamento"], r["Profissional"], r["Terapia agendada"]
       ]),
       theme: "grid",
       headStyles: { fillColor: [59,111,240], fontSize: 8 },
       styles: { fontSize: 7.5, cellPadding: 2, overflow: "linebreak" },
-      columnStyles: { 4: { cellWidth: 55 } },
       margin: { left: 10, right: 10 },
     });
 
@@ -4282,7 +4281,6 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
-
 
 
 
