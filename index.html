@@ -1627,15 +1627,15 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
   const [fIdadeMin, setFIdadeMin] = useState("");
   const [fIdadeMax, setFIdadeMax] = useState("");
   const [fAcompanhada, setFAcompanhada] = useState("");
-  const [fAgendamento, setFAgendamento] = useState("");
   const [aberta, setAberta] = useState(null);
-  const [salvandoAgendamento, setSalvandoAgendamento] = useState(null);
   const [agendamentos, setAgendamentos] = useState([]);
   const [addingAgendamentoFor, setAddingAgendamentoFor] = useState(null);
   const [novoAgProf, setNovoAgProf] = useState("");
   const [novoAgTerapia, setNovoAgTerapia] = useState("");
+  const [novoAgData, setNovoAgData] = useState("");
   const [salvandoNovoAg, setSalvandoNovoAg] = useState(false);
   const [removendoAgId, setRemovendoAgId] = useState(null);
+  const [salvandoAgDataId, setSalvandoAgDataId] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -1662,16 +1662,28 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     setSalvandoNovoAg(true);
     try{
       const { data, error } = await sb.from("triagem_agendamentos")
-        .insert({ triagem_id: triagemId, profissional_id: novoAgProf || null, terapia: novoAgTerapia || null })
+        .insert({ triagem_id: triagemId, profissional_id: novoAgProf || null, terapia: novoAgTerapia || null, data_agendamento: novoAgData || null })
         .select().single();
       if(error) throw error;
       setAgendamentos(prev => [...prev, data]);
-      setNovoAgProf(""); setNovoAgTerapia(""); setAddingAgendamentoFor(null);
+      setNovoAgProf(""); setNovoAgTerapia(""); setNovoAgData(""); setAddingAgendamentoFor(null);
       if(notify) notify("Agendamento adicionado");
     }catch(e){
       if(notify) notify("Não foi possível adicionar o agendamento: " + (e.message || e));
     }
     setSalvandoNovoAg(false);
+  };
+
+  const salvarDataAgendamento = async (id, novaData) => {
+    setSalvandoAgDataId(id);
+    try{
+      const { error } = await sb.from("triagem_agendamentos").update({ data_agendamento: novaData || null }).eq("id", id);
+      if(error) throw error;
+      setAgendamentos(prev => prev.map(a => a.id === id ? {...a, data_agendamento: novaData || null} : a));
+    }catch(e){
+      if(notify) notify("Não foi possível salvar a data: " + (e.message || e));
+    }
+    setSalvandoAgDataId(null);
   };
 
   const removerAgendamento = async (id) => {
@@ -1688,13 +1700,16 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
   };
 
   const AgendamentosCell = ({ triagemId }) => (
-    <div style={{display:'flex', flexDirection:'column', gap:5, minWidth:200}} onClick={e=>e.stopPropagation()}>
+    <div style={{display:'flex', flexDirection:'column', gap:5, minWidth:230}} onClick={e=>e.stopPropagation()}>
       {agendamentosDe(triagemId).map(a => (
-        <span key={a.id} style={{display:'inline-flex', alignItems:'center', gap:6, background:'var(--panel2)', border:'1px solid var(--border)', borderRadius:20, padding:'3px 9px', fontSize:11.5, width:'fit-content'}}>
-          {profNome(a.profissional_id) || "—"}{a.terapia ? ` · ${a.terapia}` : ""}
+        <div key={a.id} style={{display:'inline-flex', alignItems:'center', gap:6, background:'var(--panel2)', border:'1px solid var(--border)', borderRadius:20, padding:'3px 6px 3px 9px', fontSize:11.5, width:'fit-content', flexWrap:'wrap'}}>
+          <span>{profNome(a.profissional_id) || "—"}{a.terapia ? ` · ${a.terapia}` : ""}</span>
+          <input type="date" value={a.data_agendamento || ""} disabled={salvandoAgDataId===a.id}
+            onChange={e=>salvarDataAgendamento(a.id, e.target.value)}
+            style={{fontSize:11, padding:'2px 4px', border:'1px solid var(--border)', borderRadius:6, opacity: salvandoAgDataId===a.id ? 0.6 : 1}} />
           <button onClick={()=>removerAgendamento(a.id)} disabled={removendoAgId===a.id}
             style={{border:'none', background:'transparent', cursor:'pointer', color:'var(--danger)', fontWeight:700, padding:0, lineHeight:1, fontSize:13}} title="Remover">×</button>
-        </span>
+        </div>
       ))}
       {addingAgendamentoFor === triagemId ? (
         <div style={{display:'flex', gap:4, flexWrap:'wrap', alignItems:'center'}}>
@@ -1706,8 +1721,9 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
             <option value="">Terapia...</option>
             {(tiposTerapia||[]).map(tp => <option key={tp} value={tp}>{tp}</option>)}
           </select>
+          <input type="date" value={novoAgData} onChange={e=>setNovoAgData(e.target.value)} style={{fontSize:11.5, padding:'4px 6px'}} />
           <button className="btn btn-secondary" disabled={salvandoNovoAg} onClick={()=>adicionarAgendamento(triagemId)} style={{padding:'4px 9px', fontSize:11.5}}>OK</button>
-          <button onClick={()=>{setAddingAgendamentoFor(null); setNovoAgProf(""); setNovoAgTerapia("");}}
+          <button onClick={()=>{setAddingAgendamentoFor(null); setNovoAgProf(""); setNovoAgTerapia(""); setNovoAgData("");}}
             style={{padding:'4px 6px', fontSize:11.5, border:'none', background:'transparent', cursor:'pointer', color:'var(--muted)'}}>Cancelar</button>
         </div>
       ) : (
@@ -1765,20 +1781,6 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     return false;
   };
 
-  const salvarAgendamento = async (t, novaData) => {
-    setSalvandoAgendamento(t.id);
-    try{
-      const { error } = await sb.from("triagens").update({ agendamento: novaData || null }).eq("id", t.id);
-      if(error) throw error;
-      setTriagens(prev => prev.map(x => x.id === t.id ? {...x, agendamento: novaData || null} : x));
-      setAberta(prev => prev && prev.id === t.id ? {...prev, agendamento: novaData || null} : prev);
-      if(notify) notify(novaData ? "Agendamento salvo" : "Agendamento removido");
-    }catch(e){
-      if(notify) notify("Não foi possível salvar o agendamento: " + (e.message || e));
-    }
-    setSalvandoAgendamento(null);
-  };
-
   const profNome = (id) => { const p = (professionals||[]).find(x => x.id === id); return p ? p.nome : ""; };
 
   const agendamentosTexto = (triagemId) => {
@@ -1786,7 +1788,11 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     if(!lista.length) return "";
     return lista.map(a => {
       const nome = profNome(a.profissional_id) || "—";
-      return a.terapia ? `${nome} (${a.terapia})` : nome;
+      const partes = [nome];
+      if(a.terapia) partes.push(a.terapia);
+      let texto = partes.join(" - ");
+      if(a.data_agendamento) texto += ` (${fmt(a.data_agendamento)})`;
+      return texto;
     }).join("; ");
   };
 
@@ -1803,7 +1809,6 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
       indicacoes_terapeuticas: t.indicacoes_terapeuticas || "",
       escala_prioridade: t.escala_prioridade || "",
       apto_atividades_grupais: t.apto_atividades_grupais || "",
-      agendamento: fmt(t.agendamento),
       agendamentos: agendamentosTexto(t.id),
       acompanhada: isAcompanhada(t) ? "SIM" : "NÃO"
     }));
@@ -1819,7 +1824,6 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
       {key:'indicacoes_terapeuticas', label:'Indicações terapêuticas'},
       {key:'escala_prioridade', label:'Prioridade'},
       {key:'apto_atividades_grupais', label:'Apto a atividades grupais'},
-      {key:'agendamento', label:'1º Primeiro Agendamento'},
       {key:'agendamentos', label:'Profissionais / terapias agendadas'},
       {key:'acompanhada', label:'Acompanhada pela clínica'}
     ];
@@ -1841,7 +1845,6 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
       "Indicações terapêuticas": t.indicacoes_terapeuticas || "",
       "Prioridade": t.escala_prioridade || "",
       "Apto a atividades grupais": t.apto_atividades_grupais || "",
-      "1º Primeiro Agendamento": fmt(t.agendamento),
       "Profissionais / terapias agendadas": agendamentosTexto(t.id),
       "Acompanhada pela clínica": isAcompanhada(t) ? "SIM" : "NÃO"
     }));
@@ -1861,7 +1864,6 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     "Data da avaliação": fmt(t.data_avaliacao),
     "Prioridade": t.escala_prioridade || "Não informado",
     "Acompanhada pela clínica": isAcompanhada(t) ? "SIM" : "NÃO",
-    "1º Primeiro Agendamento": fmt(t.agendamento),
     "Profissionais / terapias agendadas": agendamentosTexto(t.id) || "—"
   }));
 
@@ -1892,15 +1894,15 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     const rows = linhasTabelaVisivel();
     doc.autoTable({
       startY: y,
-      head: [["Paciente","Nascimento","Idade","Telefone","Data da avaliação","Prioridade","Acompanhada pela clínica","1º Primeiro Agendamento","Profissionais / terapias agendadas"]],
+      head: [["Paciente","Nascimento","Idade","Telefone","Data da avaliação","Prioridade","Acompanhada pela clínica","Profissionais / terapias agendadas"]],
       body: rows.map(r => [
         r["Paciente"], r["Nascimento"], r["Idade"], r["Telefone"], r["Data da avaliação"],
-        r["Prioridade"], r["Acompanhada pela clínica"], r["1º Primeiro Agendamento"], r["Profissionais / terapias agendadas"]
+        r["Prioridade"], r["Acompanhada pela clínica"], r["Profissionais / terapias agendadas"]
       ]),
       theme: "grid",
       headStyles: { fillColor: [59,111,240], fontSize: 8 },
       styles: { fontSize: 7.5, cellPadding: 2, overflow: "linebreak" },
-      columnStyles: { 8: { cellWidth: 60 } },
+      columnStyles: { 7: { cellWidth: 70 } },
       margin: { left: 10, right: 10 },
     });
 
@@ -1919,13 +1921,12 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
       if(fIdadeMax !== "" && (idade === null || idade > parseInt(fIdadeMax,10))) return false;
       if(fAcompanhada === "sim" && !isAcompanhada(t)) return false;
       if(fAcompanhada === "nao" && isAcompanhada(t)) return false;
-      if(fAgendamento && t.agendamento !== fAgendamento) return false;
       if(!termo) return true;
       const nomeMatch = (t.nome||"").toLowerCase().includes(termo);
       const cpfMatch = termoDigits.length >= 3 && normDigits(t.cpf_cns).includes(termoDigits);
       return nomeMatch || cpfMatch;
     });
-  }, [triagens, q, fPrioridade, fIndicacao, fIdadeMin, fIdadeMax, fAcompanhada, fAgendamento, acompanhamentoSets]);
+  }, [triagens, q, fPrioridade, fIndicacao, fIdadeMin, fIdadeMax, fAcompanhada, acompanhamentoSets]);
 
   const corPrioridade = (p) => p==="Alta" ? {bg:'var(--danger-soft)', color:'var(--danger)', border:'#fecaca'}
     : p==="Moderada" ? {bg:'var(--warn-soft)', color:'var(--warn)', border:'#fde68a'}
@@ -1971,8 +1972,6 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
         <option value="sim">Acompanhada pela clínica: SIM</option>
         <option value="nao">Acompanhada pela clínica: NÃO</option>
       </select>
-      <input type="date" style={{maxWidth:170}} value={fAgendamento} onChange={e=>setFAgendamento(e.target.value)} title="Filtrar por data de agendamento" />
-      {fAgendamento && <button className="btn btn-secondary" style={{padding:'10px 12px'}} onClick={()=>setFAgendamento("")}>Limpar data</button>}
       <span className="count-pill">{filtradas.length} resultado{filtradas.length!==1?"s":""}</span>
       <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={exportarCrianças} disabled={filtradas.length===0}>⬇️ Exportar crianças (CSV)</button>
       <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={exportarCriancasExcel} disabled={filtradas.length===0}>📊 Exportar crianças (Excel)</button>
@@ -1989,7 +1988,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
         <div style={{width:'100%', overflowX:'auto', WebkitOverflowScrolling:'touch'}}>
         <table style={{minWidth:950}}>
           <thead>
-            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Telefone</th><th>Data da avaliação</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>1º Primeiro Agendamento</th><th>Agendamentos (profissional / terapia)</th></tr>
+            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Telefone</th><th>Data da avaliação</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>Agendamentos (profissional / terapia)</th></tr>
           </thead>
           <tbody>
             {filtradas.map(t => (
@@ -2006,11 +2005,6 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
                     : <span style={{ padding:'3px 11px', borderRadius:20, fontSize:11.5, fontWeight:700, background:'#f1f5f9', color:'#64748b', border:'1px solid #cbd5e1', whiteSpace:'nowrap' }}>NÃO</span>}
                 </td>
                 <td onClick={e=>e.stopPropagation()}>
-                  <input type="date" value={t.agendamento || ""} disabled={salvandoAgendamento===t.id}
-                    onChange={e=>salvarAgendamento(t, e.target.value)}
-                    style={{padding:'6px 8px', fontSize:12.5, maxWidth:150, opacity: salvandoAgendamento===t.id ? 0.6 : 1}} />
-                </td>
-                <td>
                   <AgendamentosCell triagemId={t.id} />
                 </td>
               </tr>
@@ -2061,14 +2055,8 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
             <div style={{marginTop:12}}><PField label="Indicações terapêuticas" value={val(aberta.indicacoes_terapeuticas)}/></div>
           </div>
           <div className="profile-card">
-            <h3>📅 Agendamento</h3>
+            <h3>📅 Agendamentos</h3>
             <div className="profile-grid">
-              <div>
-                <label style={{display:'block', fontSize:11.5, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:6}}>Data agendada</label>
-                <input type="date" value={aberta.agendamento || ""} disabled={salvandoAgendamento===aberta.id}
-                  onChange={e=>salvarAgendamento(aberta, e.target.value)}
-                  style={{maxWidth:200, opacity: salvandoAgendamento===aberta.id ? 0.6 : 1}} />
-              </div>
               <div style={{gridColumn:'1 / -1'}}>
                 <label style={{display:'block', fontSize:11.5, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:6}}>Profissionais / terapias agendadas</label>
                 <AgendamentosCell triagemId={aberta.id} />
@@ -4301,7 +4289,6 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
-
 
 
 
