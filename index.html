@@ -1699,36 +1699,98 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     setRemovendoAgId(null);
   };
 
-  const AgendamentosCell = ({ triagemId }) => (
-    <div style={{display:'flex', flexDirection:'column', gap:5, minWidth:230}} onClick={e=>e.stopPropagation()}>
+  const LINE_H = 30;
+
+  const ProfissionalColCell = ({ triagemId }) => (
+    <div style={{display:'flex', flexDirection:'column', gap:4}} onClick={e=>e.stopPropagation()}>
       {agendamentosDe(triagemId).map(a => (
-        <div key={a.id} style={{display:'inline-flex', alignItems:'center', gap:6, background:'var(--panel2)', border:'1px solid var(--border)', borderRadius:20, padding:'3px 6px 3px 9px', fontSize:11.5, width:'fit-content', flexWrap:'wrap'}}>
-          <span>{profNome(a.profissional_id) || "—"}{a.terapia ? ` · ${a.terapia}` : ""}</span>
-          <input type="date" value={a.data_agendamento || ""} disabled={salvandoAgDataId===a.id}
-            onChange={e=>salvarDataAgendamento(a.id, e.target.value)}
-            style={{fontSize:11, padding:'2px 4px', border:'1px solid var(--border)', borderRadius:6, opacity: salvandoAgDataId===a.id ? 0.6 : 1}} />
+        <div key={a.id} style={{display:'flex', alignItems:'center', gap:6, minHeight:LINE_H, fontSize:12.5}}>
           <button onClick={()=>removerAgendamento(a.id)} disabled={removendoAgId===a.id}
-            style={{border:'none', background:'transparent', cursor:'pointer', color:'var(--danger)', fontWeight:700, padding:0, lineHeight:1, fontSize:13}} title="Remover">×</button>
+            style={{border:'none', background:'transparent', cursor:'pointer', color:'var(--danger)', fontWeight:700, padding:0, lineHeight:1, fontSize:14}} title="Remover agendamento">×</button>
+          <span>{profNome(a.profissional_id) || "—"}</span>
         </div>
       ))}
       {addingAgendamentoFor === triagemId ? (
-        <div style={{display:'flex', gap:4, flexWrap:'wrap', alignItems:'center'}}>
-          <select value={novoAgProf} onChange={e=>setNovoAgProf(e.target.value)} style={{fontSize:11.5, padding:'4px 6px', maxWidth:130}}>
-            <option value="">Profissional...</option>
-            {(professionals||[]).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-          </select>
-          <select value={novoAgTerapia} onChange={e=>setNovoAgTerapia(e.target.value)} style={{fontSize:11.5, padding:'4px 6px', maxWidth:120}}>
+        <select value={novoAgProf} onChange={e=>setNovoAgProf(e.target.value)} style={{fontSize:12, padding:'4px 6px', minHeight:LINE_H, maxWidth:170}}>
+          <option value="">Profissional...</option>
+          {(professionals||[]).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+        </select>
+      ) : (
+        <button onClick={()=>setAddingAgendamentoFor(triagemId)}
+          style={{alignSelf:'flex-start', fontSize:11.5, border:'1px dashed var(--border)', background:'transparent', borderRadius:20, padding:'3px 11px', cursor:'pointer', color:'var(--accent)'}}>+ agendar</button>
+      )}
+    </div>
+  );
+
+  const DataColCell = ({ triagemId }) => (
+    <div style={{display:'flex', flexDirection:'column', gap:4}} onClick={e=>e.stopPropagation()}>
+      {agendamentosDe(triagemId).map(a => (
+        <div key={a.id} style={{minHeight:LINE_H, display:'flex', alignItems:'center'}}>
+          <input type="date" value={a.data_agendamento || ""} disabled={salvandoAgDataId===a.id}
+            onChange={e=>salvarDataAgendamento(a.id, e.target.value)}
+            style={{fontSize:12, padding:'3px 5px', border:'1px solid var(--border)', borderRadius:6, opacity: salvandoAgDataId===a.id ? 0.6 : 1}} />
+        </div>
+      ))}
+      {addingAgendamentoFor === triagemId && (
+        <div style={{minHeight:LINE_H, display:'flex', alignItems:'center'}}>
+          <input type="date" value={novoAgData} onChange={e=>setNovoAgData(e.target.value)} style={{fontSize:12, padding:'3px 5px'}} />
+        </div>
+      )}
+    </div>
+  );
+
+  const TerapiaColCell = ({ triagemId }) => (
+    <div style={{display:'flex', flexDirection:'column', gap:4}} onClick={e=>e.stopPropagation()}>
+      {agendamentosDe(triagemId).map(a => (
+        <div key={a.id} style={{minHeight:LINE_H, display:'flex', alignItems:'center', fontSize:12.5}}>
+          <span>{a.terapia || "—"}</span>
+        </div>
+      ))}
+      {addingAgendamentoFor === triagemId ? (
+        <div style={{display:'flex', gap:4, alignItems:'center', flexWrap:'wrap', minHeight:LINE_H}}>
+          <select value={novoAgTerapia} onChange={e=>setNovoAgTerapia(e.target.value)} style={{fontSize:12, padding:'4px 6px', maxWidth:130}}>
             <option value="">Terapia...</option>
             {(tiposTerapia||[]).map(tp => <option key={tp} value={tp}>{tp}</option>)}
           </select>
-          <input type="date" value={novoAgData} onChange={e=>setNovoAgData(e.target.value)} style={{fontSize:11.5, padding:'4px 6px'}} />
           <button className="btn btn-secondary" disabled={salvandoNovoAg} onClick={()=>adicionarAgendamento(triagemId)} style={{padding:'4px 9px', fontSize:11.5}}>OK</button>
           <button onClick={()=>{setAddingAgendamentoFor(null); setNovoAgProf(""); setNovoAgTerapia(""); setNovoAgData("");}}
             style={{padding:'4px 6px', fontSize:11.5, border:'none', background:'transparent', cursor:'pointer', color:'var(--muted)'}}>Cancelar</button>
         </div>
+      ) : (agendamentosDe(triagemId).length===0 && <span style={{fontSize:11.5, color:'var(--muted)'}}>—</span>)}
+    </div>
+  );
+
+  const AgendamentosDrawerList = ({ triagemId }) => (
+    <div style={{display:'flex', flexDirection:'column', gap:8}} onClick={e=>e.stopPropagation()}>
+      {agendamentosDe(triagemId).map(a => (
+        <div key={a.id} style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', background:'var(--panel2)', border:'1px solid var(--border)', borderRadius:10, padding:'6px 10px'}}>
+          <span style={{fontSize:12.5, fontWeight:600, minWidth:140}}>{profNome(a.profissional_id) || "—"}</span>
+          <input type="date" value={a.data_agendamento || ""} disabled={salvandoAgDataId===a.id}
+            onChange={e=>salvarDataAgendamento(a.id, e.target.value)}
+            style={{fontSize:12, padding:'3px 5px', border:'1px solid var(--border)', borderRadius:6, opacity: salvandoAgDataId===a.id ? 0.6 : 1}} />
+          <span style={{fontSize:12.5}}>{a.terapia || "—"}</span>
+          <button onClick={()=>removerAgendamento(a.id)} disabled={removendoAgId===a.id}
+            style={{marginLeft:'auto', border:'none', background:'transparent', cursor:'pointer', color:'var(--danger)', fontWeight:700, padding:0, lineHeight:1, fontSize:14}} title="Remover">×</button>
+        </div>
+      ))}
+      {addingAgendamentoFor === triagemId ? (
+        <div style={{display:'flex', gap:6, flexWrap:'wrap', alignItems:'center'}}>
+          <select value={novoAgProf} onChange={e=>setNovoAgProf(e.target.value)} style={{fontSize:12.5, padding:'5px 7px', maxWidth:170}}>
+            <option value="">Profissional...</option>
+            {(professionals||[]).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+          </select>
+          <input type="date" value={novoAgData} onChange={e=>setNovoAgData(e.target.value)} style={{fontSize:12.5, padding:'5px 7px'}} />
+          <select value={novoAgTerapia} onChange={e=>setNovoAgTerapia(e.target.value)} style={{fontSize:12.5, padding:'5px 7px', maxWidth:150}}>
+            <option value="">Terapia...</option>
+            {(tiposTerapia||[]).map(tp => <option key={tp} value={tp}>{tp}</option>)}
+          </select>
+          <button className="btn btn-secondary" disabled={salvandoNovoAg} onClick={()=>adicionarAgendamento(triagemId)} style={{padding:'5px 10px', fontSize:12.5}}>OK</button>
+          <button onClick={()=>{setAddingAgendamentoFor(null); setNovoAgProf(""); setNovoAgTerapia(""); setNovoAgData("");}}
+            style={{padding:'5px 8px', fontSize:12.5, border:'none', background:'transparent', cursor:'pointer', color:'var(--muted)'}}>Cancelar</button>
+        </div>
       ) : (
         <button onClick={()=>setAddingAgendamentoFor(triagemId)}
-          style={{alignSelf:'flex-start', fontSize:11.5, border:'1px dashed var(--border)', background:'transparent', borderRadius:20, padding:'3px 11px', cursor:'pointer', color:'var(--accent)'}}>+ agendar</button>
+          style={{alignSelf:'flex-start', fontSize:12, border:'1px dashed var(--border)', background:'transparent', borderRadius:20, padding:'4px 12px', cursor:'pointer', color:'var(--accent)'}}>+ agendar</button>
       )}
     </div>
   );
@@ -1986,9 +2048,9 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     {loading ? <p style={{color:'var(--muted)'}}>Carregando triagens…</p> : (
       filtradas.length === 0 ? <p style={{color:'var(--muted)'}}>Nenhuma avaliação encontrada.</p> : (
         <div style={{width:'100%', overflowX:'auto', WebkitOverflowScrolling:'touch'}}>
-        <table style={{minWidth:950}}>
+        <table style={{minWidth:1150}}>
           <thead>
-            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Telefone</th><th>Data da avaliação</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>Agendamentos (profissional / terapia)</th></tr>
+            <tr><th>Paciente</th><th>Nascimento</th><th>Idade</th><th>Telefone</th><th>Data da avaliação</th><th>Prioridade</th><th>Acompanhada pela clínica</th><th>Profissional</th><th>Data do agendamento</th><th>Terapia</th></tr>
           </thead>
           <tbody>
             {filtradas.map(t => (
@@ -2005,7 +2067,13 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
                     : <span style={{ padding:'3px 11px', borderRadius:20, fontSize:11.5, fontWeight:700, background:'#f1f5f9', color:'#64748b', border:'1px solid #cbd5e1', whiteSpace:'nowrap' }}>NÃO</span>}
                 </td>
                 <td onClick={e=>e.stopPropagation()}>
-                  <AgendamentosCell triagemId={t.id} />
+                  <ProfissionalColCell triagemId={t.id} />
+                </td>
+                <td onClick={e=>e.stopPropagation()}>
+                  <DataColCell triagemId={t.id} />
+                </td>
+                <td onClick={e=>e.stopPropagation()}>
+                  <TerapiaColCell triagemId={t.id} />
                 </td>
               </tr>
             ))}
@@ -2059,7 +2127,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
             <div className="profile-grid">
               <div style={{gridColumn:'1 / -1'}}>
                 <label style={{display:'block', fontSize:11.5, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:6}}>Profissionais / terapias agendadas</label>
-                <AgendamentosCell triagemId={aberta.id} />
+                <AgendamentosDrawerList triagemId={aberta.id} />
               </div>
             </div>
           </div>
