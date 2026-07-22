@@ -455,6 +455,61 @@ function useTiposTerapia(){
   return { tipos, loading, add, remove, move };
 }
 
+function useEspecialidades(){
+  const [tipos, setTipos] = useState(ESPECIALIDADES);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try{
+      const { data, error } = await sb.from('especialidades').select('*').order('ordem', { ascending:true });
+      if(error) throw error;
+      setTipos((data||[]).map(r=>r.nome));
+    }catch(e){
+      console.error('Erro ao carregar especialidades', e);
+      window.showFatal('Não foi possível carregar as especialidades: ' + (e.message||e));
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(()=>{ load(); }, [load]);
+
+  const add = useCallback(async (nome) => {
+    try{
+      const { data } = await sb.from('especialidades').select('ordem').order('ordem', { ascending:false }).limit(1);
+      const nextOrdem = (data && data[0] ? data[0].ordem : 0) + 1;
+      const { error } = await sb.from('especialidades').insert({ nome, ordem: nextOrdem });
+      if(error) throw error;
+      await load();
+    }catch(e){ window.showFatal('Não foi possível adicionar a especialidade: ' + (e.message||e)); }
+  }, [load]);
+
+  const remove = useCallback(async (nome) => {
+    try{
+      const { error } = await sb.from('especialidades').delete().eq('nome', nome);
+      if(error) throw error;
+      await load();
+    }catch(e){ window.showFatal('Não foi possível remover a especialidade: ' + (e.message||e)); }
+  }, [load]);
+
+  const move = useCallback(async (nome, dir) => {
+    try{
+      const { data, error } = await sb.from('especialidades').select('*').order('ordem', { ascending:true });
+      if(error) throw error;
+      const list = data||[];
+      const i = list.findIndex(t=>t.nome===nome);
+      const j = i + dir;
+      if(i<0 || j<0 || j>=list.length) return;
+      const a = list[i], b = list[j];
+      await sb.from('especialidades').update({ ordem:b.ordem }).eq('id', a.id);
+      await sb.from('especialidades').update({ ordem:a.ordem }).eq('id', b.id);
+      await load();
+    }catch(e){ window.showFatal('Não foi possível reordenar: ' + (e.message||e)); }
+  }, [load]);
+
+  return { tipos, loading, add, remove, move };
+}
+
 const ALL_TABS = [
   { id:"dashboard", label:"Dashboard" },
   { id:"cadastro", label:"Novo cadastro" },
@@ -1278,7 +1333,7 @@ function PatientsList({ patients, loading, onEdit, onDelete, filterConfigs, ther
   </>;
 }
 
-function ProfessionalsTab({ professionals, loading, save, remove, notify, filterConfigs }){
+function ProfessionalsTab({ professionals, loading, save, remove, notify, filterConfigs, especialidades }){
   const [form, setForm] = useState(blankProfessional());
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
@@ -1310,7 +1365,7 @@ function ProfessionalsTab({ professionals, loading, save, remove, notify, filter
         <Field label="Especialidade" required>
           <select value={form.especialidade} onChange={set('especialidade')}>
             <option value="">Selecione</option>
-            {ESPECIALIDADES.map(e => <option key={e}>{e}</option>)}
+            {(especialidades && especialidades.tipos ? especialidades.tipos : ESPECIALIDADES).map(e => <option key={e}>{e}</option>)}
           </select>
         </Field>
       </div>
@@ -1329,7 +1384,7 @@ function ProfessionalsTab({ professionals, loading, save, remove, notify, filter
       <div className="toolbar">
         <select style={{maxWidth:220}} value={fEsp} onChange={e=>setFEsp(e.target.value)}>
           <option value="">Especialidade (todas)</option>
-          {ESPECIALIDADES.map(e => <option key={e}>{e}</option>)}
+          {(especialidades && especialidades.tipos ? especialidades.tipos : ESPECIALIDADES).map(e => <option key={e}>{e}</option>)}
         </select>
         <select style={{maxWidth:160}} value={fStatus} onChange={e=>setFStatus(e.target.value)}>
           <option value="">Status (todos)</option>
@@ -2759,7 +2814,7 @@ const FIELDS_BY_SECTION = {
   ],
 };
 
-function FiltrosTab({ configs, loading, add, remove, move, notify, tiposTerapia }){
+function FiltrosTab({ configs, loading, add, remove, move, notify, tiposTerapia, especialidades }){
   const blankFilter = {section:'pacientes', field:'', label:''};
   const [form, setForm] = useState(blankFilter);
   const set = (k) => (e) => setForm(f => {
@@ -2898,6 +2953,63 @@ function FiltrosTab({ configs, loading, add, remove, move, notify, tiposTerapia 
               </td>
               <td style={{width:50}}>
                 <button className="icon-btn danger" title="Remover" onClick={async ()=>{ await tiposTerapia.remove(t); notify("Tipo removido"); }}>
+                  <IconTrash/>
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div className="card" style={{marginTop:16}}>
+      <div className="section-title">Especialidades dos profissionais</div>
+      <p style={{color:'var(--muted)', fontSize:13, marginBottom:20, lineHeight:1.6}}>
+        Adicione, remova ou reordene as especialidades disponíveis ao cadastrar um profissional. As alterações são compartilhadas com toda a equipe.
+      </p>
+      <div style={{display:'flex', gap:12, marginBottom:20, flexWrap:'wrap', alignItems:'flex-end'}}>
+        <div style={{flex:1, minWidth:220}}>
+          <Field label="Nome da nova especialidade">
+            <input
+              id="new-especialidade-input"
+              placeholder="Ex: Nutricionista, Terapeuta Vocacional..."
+              onKeyDown={async (e)=>{
+                if(e.key==='Enter' && e.target.value.trim()){
+                  const v = e.target.value.trim();
+                  if(especialidades.tipos.includes(v)){ notify("Essa especialidade já existe"); return; }
+                  await especialidades.add(v); notify("Especialidade adicionada"); e.target.value='';
+                }
+              }}
+            />
+          </Field>
+        </div>
+        <button className="btn btn-primary" style={{marginBottom:4}} onClick={async ()=>{
+          const inp = document.getElementById('new-especialidade-input');
+          const v = inp.value.trim();
+          if(!v){ notify("Digite o nome da especialidade"); return; }
+          if(especialidades.tipos.includes(v)){ notify("Essa especialidade já existe"); return; }
+          await especialidades.add(v); notify("Especialidade adicionada"); inp.value='';
+        }}><IconPlus/> Adicionar</button>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Especialidade</th><th>Ordem</th><th></th></tr></thead>
+        <tbody>
+          {especialidades.tipos.map((t, idx) => (
+            <tr key={t}>
+              <td style={{color:'var(--muted)', fontSize:12, width:40}}>{idx+1}</td>
+              <td>{t}</td>
+              <td style={{width:90}}>
+                <div className="row-actions">
+                  <button className="icon-btn" title="Mover para cima" onClick={()=>especialidades.move(t,-1)} disabled={idx===0}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                  </button>
+                  <button className="icon-btn" title="Mover para baixo" onClick={()=>especialidades.move(t,1)} disabled={idx===especialidades.tipos.length-1}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                  </button>
+                </div>
+              </td>
+              <td style={{width:50}}>
+                <button className="icon-btn danger" title="Remover" onClick={async ()=>{ await especialidades.remove(t); notify("Especialidade removida"); }}>
                   <IconTrash/>
                 </button>
               </td>
@@ -4423,6 +4535,7 @@ function App(){
   const pts = useCollection("pts");
   const filterCfg = useFilterConfig();
   const tiposTerapia = useTiposTerapia();
+  const especialidades = useEspecialidades();
   const rolePerms = useRolePermissions();
 
   useEffect(() => {
@@ -4514,10 +4627,10 @@ function App(){
     {tab==="lista-espera" && <WaitingListTab patients={pat.items} loading={pat.loading} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} professionals={pro.items} tiposTerapia={tiposTerapia.tipos} savePatient={pat.save} saveTherapy={ther.save} notify={notify} onColocarAtendimento={goToAtendimento}/>}
     {tab==="quantitativo" && <QuantitativoTab therapies={ther.items} patients={pat.items} professionals={pro.items} onDarAlta={goToDarAlta} onRegistrarSessao={goToAtendimento} savePatient={pat.save} notify={notify}/>}
     {tab==="por-profissional" && <ProfessionalCaseloadTab therapies={ther.items} patients={pat.items} professionals={pro.items}/>}
-    {tab==="profissionais" && <ProfessionalsTab professionals={pro.items} loading={pro.loading} save={pro.save} remove={pro.remove} notify={notify} filterConfigs={filterCfg.configs}/>}
+    {tab==="profissionais" && <ProfessionalsTab professionals={pro.items} loading={pro.loading} save={pro.save} remove={pro.remove} notify={notify} filterConfigs={filterCfg.configs} especialidades={especialidades}/>}
     {tab==="terapias" && <TherapiesTab therapies={ther.items} patients={pat.items} professionals={pro.items} loading={ther.loading} save={ther.save} remove={ther.remove} notify={notify} filterConfigs={filterCfg.configs} tiposTerapia={tiposTerapia.tipos} preselect={therapyPreselect} onConsumePreselect={()=>setTherapyPreselect(null)} savePatient={pat.save}/>}
     {tab==="pts" && <PTSTab pts={pts.items} patients={pat.items} loading={pts.loading} save={pts.save} remove={pts.remove} notify={notify} preselectPatientId={ptsPreselect ? ptsPreselect.pacienteId : null} preselectTipos={ptsPreselect ? ptsPreselect.tipos : []} onConsumePreselect={()=>setPtsPreselect(null)} savePatient={pat.save}/>}
-    {tab==="filtros" && <FiltrosTab configs={filterCfg.configs} loading={filterCfg.loading} add={filterCfg.add} remove={filterCfg.remove} move={filterCfg.move} notify={notify} tiposTerapia={tiposTerapia}/>}
+    {tab==="filtros" && <FiltrosTab configs={filterCfg.configs} loading={filterCfg.loading} add={filterCfg.add} remove={filterCfg.remove} move={filterCfg.move} notify={notify} tiposTerapia={tiposTerapia} especialidades={especialidades}/>}
     {tab==="exportar" && <ExportTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} notify={notify}/>}
     {tab==="assistente-ia" && <AssistenteIATab notify={notify}/>}
     {tab==="avaliacoes" && <TriagensTab notify={notify} patients={pat.items} professionals={pro.items} tiposTerapia={tiposTerapia.tipos}/>}
