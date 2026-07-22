@@ -187,6 +187,7 @@
   .role-badge{ font-size:11px; padding:2px 7px; border-radius:10px; font-weight:700; }
   .role-badge.admin{ background:#fef3c7; color:#92400e; }
   .role-badge.user{ background:var(--accent-soft); color:var(--accent); }
+  .role-badge.recepcao{ background:#f0fdfa; color:#0f766e; }
 
   .dash-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
   @media(max-width:900px){ .dash-grid{ grid-template-columns:repeat(2,1fr); } }
@@ -452,6 +453,88 @@ function useTiposTerapia(){
   }, [load]);
 
   return { tipos, loading, add, remove, move };
+}
+
+const ALL_TABS = [
+  { id:"dashboard", label:"Dashboard" },
+  { id:"cadastro", label:"Novo cadastro" },
+  { id:"pacientes", label:"Pacientes Cadastrados" },
+  { id:"lista-espera", label:"Lista de espera por terapia" },
+  { id:"quantitativo", label:"Pacientes Ativos por Terapia" },
+  { id:"por-profissional", label:"Pacientes por profissional" },
+  { id:"profissionais", label:"Profissionais" },
+  { id:"terapias", label:"Registrar Terapias" },
+  { id:"pts", label:"PTS e Alta" },
+  { id:"filtros", label:"Filtros" },
+  { id:"exportar", label:"Exportar" },
+  { id:"assistente-ia", label:"Assistente IA" },
+  { id:"avaliacoes", label:"Avaliação da triagem" },
+  { id:"minha-conta", label:"Minha conta" },
+];
+const REGISTROS_PERM_ID = "__ver_registros_terapia__";
+
+function useRolePermissions(){
+  const [rows, setRows] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try{
+      const { data, error } = await sb.from('role_permissions').select('*');
+      if(error) throw error;
+      setRows(data || []);
+    }catch(e){
+      console.error('Erro ao carregar permissões de perfil', e);
+      setRows([]);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const map = useMemo(() => {
+    const m = {};
+    (rows||[]).forEach(r => { if(!m[r.role]) m[r.role] = new Set(); m[r.role].add(r.tab_id); });
+    return m;
+  }, [rows]);
+
+  const configuredRoles = useMemo(() => new Set((rows||[]).map(r => r.role)), [rows]);
+
+  // Se o perfil nunca foi restringido pelo admin, mantém acesso total (compatibilidade).
+  const canAccess = useCallback((role, tabId) => {
+    if(role === 'admin') return true;
+    if(!configuredRoles.has(role)) return true;
+    return map[role] ? map[role].has(tabId) : false;
+  }, [map, configuredRoles]);
+
+  const setPermission = useCallback(async (role, tabId, allowed) => {
+    try{
+      if(allowed){
+        const { error } = await sb.from('role_permissions').insert({ role, tab_id: tabId });
+        if(error && error.code !== '23505') throw error;
+      }else{
+        const { error } = await sb.from('role_permissions').delete().eq('role', role).eq('tab_id', tabId);
+        if(error) throw error;
+      }
+      await load();
+    }catch(e){ window.showFatal('Não foi possível salvar a permissão: ' + (e.message||e)); }
+  }, [load]);
+
+  const setAllForRole = useCallback(async (role, tabIds, allowed) => {
+    try{
+      if(allowed){
+        await sb.from('role_permissions').delete().eq('role', role);
+        const { error } = await sb.from('role_permissions').insert(tabIds.map(tab_id => ({ role, tab_id })));
+        if(error) throw error;
+      }else{
+        const { error } = await sb.from('role_permissions').delete().eq('role', role);
+        if(error) throw error;
+      }
+      await load();
+    }catch(e){ window.showFatal('Não foi possível salvar as permissões: ' + (e.message||e)); }
+  }, [load]);
+
+  return { rows, loading, map, configuredRoles, canAccess, setPermission, setAllForRole };
 }
 
 const blankPatient = () => ({
@@ -837,6 +920,8 @@ function StatusBadge({ status }){
   return <span className={"badge " + cls}>{status}</span>;
 }
 
+const roleLabel = (role) => role === 'admin' ? 'Admin' : role === 'recepcao' ? 'Recepção' : 'Usuário';
+
 const THERAPY_PALETTE = [
   { bg:'#eff6ff', color:'#2563eb', border:'#bfdbfe' },
   { bg:'#fdf2f8', color:'#db2777', border:'#fbcfe8' },
@@ -891,7 +976,7 @@ function TherapyMiniBadges({ list, onIniciar }){
   </div>;
 }
 
-function PatientProfile({ patient, therapies, pts, professionals, onClose, onEdit }){
+function PatientProfile({ patient, therapies, pts, professionals, onClose, onEdit, podeVerRegistros = true }){
   const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : null;
   const val = (v) => v || null;
 
@@ -1023,7 +1108,7 @@ function PatientProfile({ patient, therapies, pts, professionals, onClose, onEdi
         </div>}
 
         {/* Terapias */}
-        <div className="profile-card">
+        {podeVerRegistros ? <div className="profile-card">
           <h3>🧩 Sessões de terapia ({myTherapies.length})</h3>
           {myTherapies.length === 0
             ? <p style={{color:'var(--muted)', fontSize:13, margin:0}}>Nenhuma sessão registrada.</p>
@@ -1053,7 +1138,12 @@ function PatientProfile({ patient, therapies, pts, professionals, onClose, onEdi
                 {myTherapies.length > 10 && <div style={{fontSize:12, color:'var(--muted)', textAlign:'center', marginTop:10}}>+ {myTherapies.length - 10} sessões anteriores</div>}
               </>
           }
-        </div>
+        </div> : (
+          <div className="profile-card">
+            <h3>🧩 Sessões de terapia</h3>
+            <p style={{color:'var(--muted)', fontSize:13, margin:0}}>🔒 Seu perfil não tem permissão para ver o histórico de sessões deste paciente.</p>
+          </div>
+        )}
 
         {/* Observações gerais */}
         {patient.obs && <div className="profile-card">
@@ -1074,7 +1164,7 @@ function PatientProfile({ patient, therapies, pts, professionals, onClose, onEdi
   </>;
 }
 
-function PatientsList({ patients, loading, onEdit, onDelete, filterConfigs, therapies, pts, professionals }){
+function PatientsList({ patients, loading, onEdit, onDelete, filterConfigs, therapies, pts, professionals, podeVerRegistros = true }){
   const [q, setQ] = useState("");
   const [fStatus, setFStatus] = useState("");
   const [fCid, setFCid] = useState("");
@@ -1183,6 +1273,7 @@ function PatientsList({ patients, loading, onEdit, onDelete, filterConfigs, ther
     professionals={professionals||[]}
     onClose={()=>setViewingPatient(null)}
     onEdit={(p)=>{ setViewingPatient(null); onEdit(p); }}
+    podeVerRegistros={podeVerRegistros}
   />}
   </>;
 }
@@ -3539,7 +3630,7 @@ function LoginScreen({ onLogin, usersHook }){
 }
 
 // ── UsersTab (admin only) ─────────────────────────────────────────────────────
-function UsersTab({ usersHook, currentUser, notify }){
+function UsersTab({ usersHook, currentUser, notify, rolePerms }){
   const {users, loading, addUser, updateUser, resetPwd, removeUser} = usersHook;
   const [form, setForm] = useState({displayName:'', username:'', password:'', role:'user'});
   const [resetForm, setResetForm] = useState(null); // {userId, pwd, confirm}
@@ -3586,6 +3677,7 @@ function UsersTab({ usersHook, currentUser, notify }){
         <Field label="Perfil">
           <select value={form.role} onChange={set('role')}>
             <option value="user">Usuário</option>
+            <option value="recepcao">Recepção</option>
             <option value="admin">Administrador</option>
           </select>
         </Field>
@@ -3612,7 +3704,7 @@ function UsersTab({ usersHook, currentUser, notify }){
             <tr key={u.id} style={u.id===currentUser.id?{background:'#f8faff'}:{}}>
               <td style={{fontWeight:600}}>{u.displayName} {u.id===currentUser.id&&<span style={{fontSize:12,color:'var(--muted)'}}>(você)</span>}</td>
               <td><code>{u.username}</code></td>
-              <td><span className={"role-badge "+(u.role==='admin'?'admin':'user')}>{u.role==='admin'?'Admin':'Usuário'}</span></td>
+              <td><span className={"role-badge "+(u.role==='admin'?'admin':u.role==='recepcao'?'recepcao':'user')}>{roleLabel(u.role)}</span></td>
               <td style={{color:'var(--muted)',fontSize:13}}>{u.createdAt?new Date(u.createdAt).toLocaleDateString('pt-BR'):'—'}</td>
               <td>
                 <div className="row-actions">
@@ -3628,6 +3720,49 @@ function UsersTab({ usersHook, currentUser, notify }){
           ))}
         </tbody>
       </table>}
+    </div>
+
+    <div className="card" style={{marginTop:20}}>
+      <div className="section-title">Permissões de acesso por perfil</div>
+      <p style={{color:'var(--muted)', fontSize:13, marginTop:-8, marginBottom:16}}>
+        O Administrador sempre tem acesso a tudo. Marque as abas que cada perfil pode acessar.
+        Se nenhuma caixa desse perfil for marcada (perfil nunca configurado), o acesso continua total por padrão.
+      </p>
+      {["recepcao","user"].map(role => {
+        const allowedSet = rolePerms.map[role];
+        const restricted = rolePerms.configuredRoles.has(role);
+        return (
+          <div key={role} style={{marginBottom:22, paddingBottom:18, borderBottom:'1px solid var(--border)'}}>
+            <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:10, flexWrap:'wrap'}}>
+              <span className={"role-badge "+(role==='recepcao'?'recepcao':'user')} style={{fontSize:12.5, padding:'4px 10px'}}>{roleLabel(role)}</span>
+              <span style={{fontSize:12.5, color:'var(--muted)'}}>{restricted ? "Acesso restrito às abas marcadas abaixo" : "Sem restrição configurada (acesso total)"}</span>
+              <div style={{marginLeft:'auto', display:'flex', gap:6}}>
+                <button className="btn btn-secondary" style={{padding:'5px 10px', fontSize:12}} onClick={()=>rolePerms.setAllForRole(role, ALL_TABS.map(t=>t.id).concat([REGISTROS_PERM_ID]), true)}>Marcar todas</button>
+                <button className="btn btn-secondary" style={{padding:'5px 10px', fontSize:12}} onClick={()=>rolePerms.setAllForRole(role, [], false)}>Liberar tudo (sem restrição)</button>
+              </div>
+            </div>
+            <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
+              {ALL_TABS.map(t => {
+                const checked = allowedSet ? allowedSet.has(t.id) : true;
+                return (
+                  <label key={t.id} style={{display:'flex', alignItems:'center', gap:6, fontSize:12.5, background:'var(--panel2)', border:'1px solid var(--border)', borderRadius:20, padding:'5px 12px', cursor:'pointer'}}>
+                    <input type="checkbox" checked={checked} onChange={e=>rolePerms.setPermission(role, t.id, e.target.checked)} style={{width:14, height:14, accentColor:'var(--accent)'}} />
+                    {t.label}
+                  </label>
+                );
+              })}
+            </div>
+            <div style={{marginTop:12, paddingTop:12, borderTop:'1px dashed var(--border)'}}>
+              <label style={{display:'flex', alignItems:'center', gap:8, fontSize:12.5, cursor:'pointer', fontWeight:600}}>
+                <input type="checkbox" checked={allowedSet ? allowedSet.has(REGISTROS_PERM_ID) : true}
+                  onChange={e=>rolePerms.setPermission(role, REGISTROS_PERM_ID, e.target.checked)}
+                  style={{width:14, height:14, accentColor:'var(--accent)'}} />
+                🔒 Pode ver os registros/histórico de sessões de terapia dos pacientes
+              </label>
+            </div>
+          </div>
+        );
+      })}
     </div>
 
     {/* Modal redefinir senha */}
@@ -3673,7 +3808,7 @@ function MyAccountTab({ currentUser, usersHook, notify }){
 
   return <div className="card" style={{maxWidth:460}}>
     <div className="section-title">🔑 Minha conta — {currentUser.displayName}</div>
-    <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Usuário: <code>{currentUser.username}</code> · Perfil: <span className={"role-badge "+(currentUser.role==='admin'?'admin':'user')} style={{display:'inline-block'}}>{currentUser.role==='admin'?'Administrador':'Usuário'}</span></p>
+    <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Usuário: <code>{currentUser.username}</code> · Perfil: <span className={"role-badge "+(currentUser.role==='admin'?'admin':currentUser.role==='recepcao'?'recepcao':'user')} style={{display:'inline-block'}}>{roleLabel(currentUser.role)}</span></p>
     <div className="section-title">Alterar minha senha</div>
     {err && <div className="auth-error" style={{marginBottom:14}}>{err}</div>}
     <div className="auth-field"><label>Senha atual</label>
@@ -4288,6 +4423,13 @@ function App(){
   const pts = useCollection("pts");
   const filterCfg = useFilterConfig();
   const tiposTerapia = useTiposTerapia();
+  const rolePerms = useRolePermissions();
+
+  useEffect(() => {
+    if(!currentUser || rolePerms.rows === null) return;
+    if(tab === "usuarios" || tab === "minha-conta") return;
+    if(!rolePerms.canAccess(currentUser.role, tab)) setTab("dashboard");
+  }, [currentUser, rolePerms.rows, tab]);
   const alerts = useAlerts(pat.items, pts.items);
 
   const notify = (msg) => { setToast(msg); setTimeout(()=>setToast(""), 2600); };
@@ -4321,7 +4463,7 @@ function App(){
     {id:"avaliacoes", label:"Avaliação da triagem", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>},
     ...(isAdmin ? [{id:"usuarios", label:"Usuários", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}] : []),
     {id:"minha-conta", label:"Minha conta", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>},
-  ];
+  ].filter(t => t.id === "usuarios" || t.id === "minha-conta" || rolePerms.canAccess(currentUser?.role, t.id));
 
   return <div>
     <div className="header">
@@ -4344,7 +4486,7 @@ function App(){
         <div className="user-chip-av">{initials(currentUser?.displayName)}</div>
         <div>
           <div style={{lineHeight:1.2}}>{currentUser?.displayName}</div>
-          <div><span className={"role-badge "+(isAdmin?"admin":"user")} style={{padding:"1px 6px",fontSize:"10px"}}>{isAdmin?"Admin":"Usuário"}</span></div>
+          <div><span className={"role-badge "+(isAdmin?"admin":currentUser?.role==='recepcao'?"recepcao":"user")} style={{padding:"1px 6px",fontSize:"10px"}}>{roleLabel(currentUser?.role)}</span></div>
         </div>
       </div>
 
@@ -4368,7 +4510,7 @@ function App(){
 
     {tab==="dashboard" && <DashboardTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} alerts={alerts} onGoTo={goTo}/>}
     {tab==="cadastro" && <PatientForm patients={pat.items} save={pat.save} notify={notify} editTarget={editingPatient} onDone={()=>{ setEditingPatient(null); setTab("pacientes"); }} onRequestDelete={(p)=>setConfirmDel(p)} tiposTerapia={tiposTerapia.tipos}/>}
-    {tab==="pacientes" && <PatientsList patients={pat.items} loading={pat.loading} filterConfigs={filterCfg.configs} therapies={ther.items} pts={pts.items} professionals={pro.items} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} onDelete={(p)=>setConfirmDel(p)}/>}
+    {tab==="pacientes" && <PatientsList patients={pat.items} loading={pat.loading} filterConfigs={filterCfg.configs} therapies={ther.items} pts={pts.items} professionals={pro.items} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} onDelete={(p)=>setConfirmDel(p)} podeVerRegistros={rolePerms.canAccess(currentUser?.role, REGISTROS_PERM_ID)}/>}
     {tab==="lista-espera" && <WaitingListTab patients={pat.items} loading={pat.loading} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} professionals={pro.items} tiposTerapia={tiposTerapia.tipos} savePatient={pat.save} saveTherapy={ther.save} notify={notify} onColocarAtendimento={goToAtendimento}/>}
     {tab==="quantitativo" && <QuantitativoTab therapies={ther.items} patients={pat.items} professionals={pro.items} onDarAlta={goToDarAlta} onRegistrarSessao={goToAtendimento} savePatient={pat.save} notify={notify}/>}
     {tab==="por-profissional" && <ProfessionalCaseloadTab therapies={ther.items} patients={pat.items} professionals={pro.items}/>}
@@ -4379,7 +4521,7 @@ function App(){
     {tab==="exportar" && <ExportTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} notify={notify}/>}
     {tab==="assistente-ia" && <AssistenteIATab notify={notify}/>}
     {tab==="avaliacoes" && <TriagensTab notify={notify} patients={pat.items} professionals={pro.items} tiposTerapia={tiposTerapia.tipos}/>}
-    {tab==="usuarios" && isAdmin && <UsersTab usersHook={usersHook} currentUser={currentUser} notify={notify}/>}
+    {tab==="usuarios" && isAdmin && <UsersTab usersHook={usersHook} currentUser={currentUser} notify={notify} rolePerms={rolePerms}/>}
     {tab==="minha-conta" && <MyAccountTab currentUser={currentUser} usersHook={usersHook} notify={notify}/>}
 
     {confirmDel && <ConfirmModal title="Excluir paciente"
