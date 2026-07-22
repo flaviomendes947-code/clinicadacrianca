@@ -568,12 +568,21 @@ function useRolePermissions(){
         const { error } = await sb.from('role_permissions').insert({ role, tab_id: tabId });
         if(error && error.code !== '23505') throw error;
       }else{
-        const { error } = await sb.from('role_permissions').delete().eq('role', role).eq('tab_id', tabId);
-        if(error) throw error;
+        if(!configuredRoles.has(role)){
+          // Perfil ainda não restringido (acesso total implícito): ao desmarcar a primeira
+          // aba, precisamos "materializar" a lista completa menos essa aba, senão a
+          // remoção não teria efeito nenhum (não existe linha pra apagar ainda).
+          const seedIds = ALL_TABS.map(t => t.id).concat([REGISTROS_PERM_ID]).filter(id => id !== tabId);
+          const { error } = await sb.from('role_permissions').insert(seedIds.map(tab_id => ({ role, tab_id })));
+          if(error) throw error;
+        }else{
+          const { error } = await sb.from('role_permissions').delete().eq('role', role).eq('tab_id', tabId);
+          if(error) throw error;
+        }
       }
       await load();
     }catch(e){ window.showFatal('Não foi possível salvar a permissão: ' + (e.message||e)); }
-  }, [load]);
+  }, [load, configuredRoles]);
 
   const setAllForRole = useCallback(async (role, tabIds, allowed) => {
     try{
@@ -1710,7 +1719,7 @@ function JsonViewerModal({ patients, professionals, therapies, pts, onClose, not
 // ── Assistente de IA (perguntas em linguagem natural sobre os dados) ─────────
 function AssistenteIATab({ notify }){
   const [mensagens, setMensagens] = useState([
-    { autor: "ia", texto: "Oi! Pode perguntar coisas como \"quantas crianças estão em lista de espera de fonoaudiologia?\" ou \"quais pacientes da Rebeca já receberam alta?\"." }
+    { autor: "ia", texto: "Oi! Pode perguntar coisas como \"quantas crianças estão em lista de espera de fonoaudiologia?\" ou \"quais pacientes da Rebeca já receberam alta?\". Também posso montar um relatório em texto que você pode exportar em PDF — é só pedir, ex: \"monte um relatório dos atendimentos deste mês\"." }
   ]);
   const [pergunta, setPergunta] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -1749,20 +1758,67 @@ function AssistenteIATab({ notify }){
 
   const onKeyDown = (e) => { if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); enviar(); } };
 
+  const exportarTextoPDF = (titulo, texto) => {
+    if(typeof window.jspdf === "undefined"){ notify("Biblioteca de PDF não carregou. Verifique sua conexão."); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const maxWidth = pageWidth - margin*2;
+    let y = 18;
+
+    doc.setFontSize(15); doc.setFont(undefined, "bold");
+    doc.text(titulo, margin, y);
+    y += 7;
+    doc.setFontSize(9.5); doc.setFont(undefined, "normal"); doc.setTextColor(120);
+    doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR').slice(0,5)}`, margin, y);
+    doc.setTextColor(0);
+    y += 9;
+
+    doc.setFontSize(11);
+    const linhas = texto.split("\n");
+    linhas.forEach(linha => {
+      const wrapped = doc.splitTextToSize(linha || " ", maxWidth);
+      wrapped.forEach(w => {
+        if(y > pageHeight - 18){ doc.addPage(); y = 18; }
+        doc.text(w, margin, y);
+        y += 6;
+      });
+    });
+
+    doc.save(`relatorio-assistente-ia-${new Date().toISOString().slice(0,10)}.pdf`);
+    notify("Relatório exportado em PDF");
+  };
+
+  const exportarConversaPDF = () => {
+    const texto = mensagens.map(m => `${m.autor === "user" ? "Você" : "Assistente IA"}:\n${m.texto}`).join("\n\n");
+    exportarTextoPDF("Conversa — Assistente de IA", texto);
+  };
+
   return <div className="card" style={{display:"flex", flexDirection:"column", height:"70vh"}}>
-    <div className="section-title">Assistente de IA</div>
-    <p style={{color:'var(--muted)', fontSize:13, marginBottom:14}}>
-      Pergunte sobre os dados do sistema em português. As respostas são geradas por IA a partir dos dados atuais — sempre confira informações importantes antes de usar em decisões clínicas.
+    <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8}}>
+      <div className="section-title" style={{marginBottom:0}}>Assistente de IA</div>
+      <button className="btn btn-secondary" style={{padding:"7px 12px", fontSize:12.5}} onClick={exportarConversaPDF}>📄 Exportar conversa em PDF</button>
+    </div>
+    <p style={{color:'var(--muted)', fontSize:13, marginBottom:14, marginTop:6}}>
+      Pergunte sobre os dados do sistema em português, ou peça um relatório (ex: "monte um relatório da lista de espera por terapia"). As respostas são geradas por IA a partir dos dados atuais — sempre confira informações importantes antes de usar em decisões clínicas.
     </p>
     <div style={{flex:1, overflowY:"auto", border:"1px solid var(--border)", borderRadius:10, padding:14, background:"var(--bg-soft, #f8fafc)", marginBottom:12}}>
       {mensagens.map((m,i) => (
-        <div key={i} style={{display:"flex", justifyContent: m.autor==="user" ? "flex-end" : "flex-start", marginBottom:10}}>
+        <div key={i} style={{display:"flex", flexDirection:"column", alignItems: m.autor==="user" ? "flex-end" : "flex-start", marginBottom:10}}>
           <div style={{
             maxWidth:"75%", padding:"9px 13px", borderRadius:12, fontSize:13.5, lineHeight:1.5, whiteSpace:"pre-wrap",
             background: m.autor==="user" ? "#3b6ff0" : (m.erro ? "#fef2f2" : "#fff"),
             color: m.autor==="user" ? "#fff" : (m.erro ? "#991b1b" : "var(--text)"),
             border: m.autor==="ia" ? "1px solid var(--border)" : "none"
           }}>{m.texto}</div>
+          {m.autor==="ia" && !m.erro && (
+            <button onClick={()=>exportarTextoPDF("Relatório — Assistente de IA", m.texto)}
+              style={{marginTop:4, fontSize:11, border:'none', background:'transparent', cursor:'pointer', color:'var(--accent)', padding:0}}>
+              📄 Exportar esta resposta em PDF
+            </button>
+          )}
         </div>
       ))}
       {enviando && <div style={{fontSize:13, color:"var(--muted)"}}>Consultando os dados…</div>}
