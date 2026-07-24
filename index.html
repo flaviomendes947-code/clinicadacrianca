@@ -4487,46 +4487,6 @@ function DashboardTab({ patients, professionals, therapies, pts, alerts, onGoTo 
       </div>
     </>}
 
-    <div className="dash-row">
-      {/* Terapias */}
-      <div className="card">
-        <div className="section-title">Sessões</div>
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16}}>
-          {[
-            {num:sessoesHoje,    label:"Hoje",              color:"var(--accent)"},
-            {num:sessoesSemana,  label:"Últimos 7 dias",    color:"#6366f1"},
-            {num:realizadas,     label:"Realizadas (total)",color:"var(--ok)"},
-            {num:agendadas,      label:"Agendadas",         color:"var(--warn)"},
-          ].map(x=>(
-            <div key={x.label} style={{background:'var(--panel2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px'}}>
-              <div style={{fontSize:26, fontWeight:800, color:x.color}}>{x.num}</div>
-              <div style={{fontSize:12, color:'var(--muted)', marginTop:2}}>{x.label}</div>
-            </div>
-          ))}
-        </div>
-        <button className="btn btn-secondary" style={{width:'100%'}} onClick={()=>onGoTo("terapias")}>Ver todas as sessões →</button>
-      </div>
-
-      {/* Profissionais */}
-      <div className="card">
-        <div className="section-title">Equipe</div>
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:40, fontWeight:800, color:'var(--accent)', lineHeight:1}}>{professionals.length}</div>
-          <div style={{fontSize:13, color:'var(--muted)', marginTop:4}}>Profissionais cadastrados</div>
-        </div>
-        <div style={{display:'flex', flexWrap:'wrap', gap:8, marginBottom:16}}>
-          {Object.entries(professionals.reduce((acc,p)=>{acc[p.especialidade||"Não informada"]=(acc[p.especialidade||"Não informada"]||0)+1;return acc;},{}))
-            .sort((a,b)=>b[1]-a[1]).slice(0,6)
-            .map(([esp,n])=>(
-              <span key={esp} style={{background:'var(--accent-soft)',border:'1px solid #c7d7fc',borderRadius:20,padding:'4px 10px',fontSize:12,color:'var(--accent)',fontWeight:600}}>
-                {esp} · {n}
-              </span>
-            ))}
-        </div>
-        <button className="btn btn-secondary" style={{width:'100%'}} onClick={()=>onGoTo("profissionais")}>Ver profissionais →</button>
-      </div>
-    </div>
-
     {/* Alertas */}
     {alerts.length > 0 && <div className="card">
       <div className="section-title">⚠️ Alertas pendentes ({alerts.length})</div>
@@ -4706,6 +4666,7 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
+
 
 
 
