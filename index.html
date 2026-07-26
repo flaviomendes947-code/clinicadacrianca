@@ -725,7 +725,7 @@ function ConfirmModal({ title, text, onConfirm, onCancel }){
 function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDelete, tiposTerapia }){
   const [form, setForm] = useState(editTarget || blankPatient());
   useEffect(()=>{ setForm(editTarget || blankPatient()); }, [editTarget]);
-  const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
+  const set = (k) => (e) => setForm(f => ({...f, [k]: valorCaixaAlta(e)}));
 
   // ── Busca de triagens para pré-preenchimento (somente em novo cadastro) ────
   const [triagensBusca, setTriagensBusca] = useState([]);
@@ -836,7 +836,7 @@ function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDele
           </div>
         ) : (
           <div style={{position:'relative'}}>
-            <input placeholder={loadingTriagens ? "Carregando avaliações..." : "Buscar por nome ou CPF/CNS..."} value={buscaTriagem} onChange={e=>setBuscaTriagem(e.target.value)} disabled={loadingTriagens} style={{maxWidth:'100%'}} />
+            <input placeholder={loadingTriagens ? "Carregando avaliações..." : "Buscar por nome ou CPF/CNS..."} value={buscaTriagem} onChange={e=>setBuscaTriagem(valorCaixaAlta(e))} disabled={loadingTriagens} style={{maxWidth:'100%'}} />
             {resultadosTriagem.length > 0 && (
               <div style={{position:'absolute', zIndex:20, top:'calc(100% + 4px)', left:0, right:0, background:'var(--panel)', border:'1px solid var(--border)', borderRadius:9, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', maxHeight:280, overflowY:'auto'}}>
                 {resultadosTriagem.map(t => (
@@ -983,6 +983,17 @@ function StatusBadge({ status }){
     : "badge-inativo";
   return <span className={"badge " + cls}>{status}</span>;
 }
+
+// Remove acentos e converte para caixa alta — usado em todos os campos de texto livre do sistema.
+const toCaixaAlta = (str) => (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+
+// Transforma o valor de um evento de input/textarea em caixa alta sem acento, mas só quando
+// for realmente um campo de texto livre (não mexe em datas, horas, números, e-mail ou senha).
+const valorCaixaAlta = (e) => {
+  const el = e.target;
+  const tipo = (el.tagName === "TEXTAREA") ? "textarea" : (el.type || "text");
+  return tipo === "text" || tipo === "textarea" ? toCaixaAlta(el.value) : el.value;
+};
 
 const roleLabel = (role) => role === 'admin' ? 'Admin' : role === 'recepcao' ? 'Recepção' : 'Usuário';
 
@@ -1264,7 +1275,7 @@ function PatientsList({ patients, loading, onEdit, onDelete, filterConfigs, ther
   return <>
   <div className="card">
     <div className="toolbar">
-      <input placeholder="Buscar por nome, responsável ou diagnóstico..." value={q} onChange={e=>setQ(e.target.value)} />
+      <input placeholder="Buscar por nome, responsável ou diagnóstico..." value={q} onChange={e=>setQ(valorCaixaAlta(e))} />
       <select style={{maxWidth:160}} value={fStatus} onChange={e=>setFStatus(e.target.value)}>
         <option value="">Status (todos)</option>
         <option>Ativo</option><option>Em pausa</option><option>Lista de espera</option><option>Alta</option><option>Inativo</option>
@@ -1349,7 +1360,7 @@ function ProfessionalsTab({ professionals, loading, save, remove, notify, filter
   const [fEsp, setFEsp] = useState("");
   const [fStatus, setFStatus] = useState("");
   const dynF = useDynamicFilters(filterConfigs||[], 'profissionais');
-  const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
+  const set = (k) => (e) => setForm(f => ({...f, [k]: valorCaixaAlta(e)}));
 
   const filtered = useMemo(() => professionals.filter(p =>
     (!fEsp || p.especialidade === fEsp) &&
@@ -1513,7 +1524,7 @@ function TherapiesTab({ therapies, patients, professionals, loading, save, remov
   const [fStatus, setFStatus] = useState("");
   const [highlight, setHighlight] = useState(false);
   const dynF = useDynamicFilters(filterConfigs||[], 'terapias');
-  const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
+  const set = (k) => (e) => setForm(f => ({...f, [k]: valorCaixaAlta(e)}));
 
   useEffect(() => {
     if(!preselect) return;
@@ -2241,7 +2252,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
     <div className="section-title">Avaliação da triagem</div>
     <p style={{color:'var(--muted)', fontSize:13, marginBottom:14}}>Consulta às triagens importadas da planilha de avaliação. Somente leitura — {triagens.length} registros carregados.</p>
     <div className="toolbar" style={{marginBottom:16}}>
-      <input placeholder="Buscar por nome ou CPF/CNS..." value={q} onChange={e=>setQ(e.target.value)} />
+      <input placeholder="Buscar por nome ou CPF/CNS..." value={q} onChange={e=>setQ(valorCaixaAlta(e))} />
       <select style={{maxWidth:200}} value={fPrioridade} onChange={e=>setFPrioridade(e.target.value)}>
         <option value="">Prioridade (todas)</option>
         <option value="Alta">Alta</option>
@@ -2874,7 +2885,8 @@ function FiltrosTab({ configs, loading, add, remove, move, notify, tiposTerapia,
   const blankFilter = {section:'pacientes', field:'', label:''};
   const [form, setForm] = useState(blankFilter);
   const set = (k) => (e) => setForm(f => {
-    const upd = {...f, [k]: e.target.value};
+    const val = valorCaixaAlta(e);
+    const upd = {...f, [k]: val};
     if(k === 'section'){ upd.field = ''; upd.label = ''; }
     if(k === 'field'){
       const opt = (FIELDS_BY_SECTION[f.section]||[]).find(x=>x.key===e.target.value);
@@ -3117,7 +3129,7 @@ function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatient
   const [confirmDel, setConfirmDel] = useState(null);
   const [search, setSearch] = useState("");
   const [tiposParaAlta, setTiposParaAlta] = useState([]);
-  const set = (k) => (e) => setForm(f => ({...f, [k]: e.target.value}));
+  const set = (k) => (e) => setForm(f => ({...f, [k]: valorCaixaAlta(e)}));
 
   useEffect(() => {
     if(!preselectPatientId) return;
@@ -3261,7 +3273,7 @@ function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatient
 
     <div className="card">
       <div className="toolbar">
-        <input placeholder="Buscar por nome do paciente..." value={search} onChange={e=>setSearch(e.target.value)} />
+        <input placeholder="Buscar por nome do paciente..." value={search} onChange={e=>setSearch(valorCaixaAlta(e))} />
         <span className="count-pill">{filteredPTS.length} PTS</span>
       </div>
       {loading ? <div className="loading">Carregando...</div> :
@@ -3414,7 +3426,7 @@ function WaitingListTab({ patients, loading, onEdit, professionals, tiposTerapia
 
     <div className="card">
       <div className="toolbar">
-        <input placeholder="Buscar por nome, responsável, diagnóstico ou unidade..." value={q} onChange={e=>setQ(e.target.value)} />
+        <input placeholder="Buscar por nome, responsável, diagnóstico ou unidade..." value={q} onChange={e=>setQ(valorCaixaAlta(e))} />
         <select style={{maxWidth:220}} value={fTerapia} onChange={e=>setFTerapia(e.target.value)}>
           <option value="">Terapia (todas)</option>
           {byTerapia.map(([tipo]) => <option key={tipo} value={tipo}>{tipo}</option>)}
@@ -4149,7 +4161,7 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta, onRegi
                       <td colSpan={6} style={{background:'var(--panel2)',padding:'14px 18px'}}>
                         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10}}>
                           <div style={{fontSize:13,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.05em'}}>Pacientes em {row.tipo}</div>
-                          <input placeholder="Buscar criança por nome..." value={qPaciente} onChange={e=>setQPaciente(e.target.value)} style={{maxWidth:240}} onClick={e=>e.stopPropagation()}/>
+                          <input placeholder="Buscar criança por nome..." value={qPaciente} onChange={e=>setQPaciente(valorCaixaAlta(e))} style={{maxWidth:240}} onClick={e=>e.stopPropagation()}/>
                         </div>
                         <table style={{marginBottom:14}}>
                           <thead><tr><th>#</th><th>Nome</th><th>Data de nascimento</th><th>Idade</th><th>Profissional</th><th></th></tr></thead>
@@ -4215,7 +4227,7 @@ function QuantitativoTab({ therapies, patients, professionals, onDarAlta, onRegi
                       <td colSpan={6} style={{background:'var(--panel2)',padding:'14px 18px'}}>
                         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10}}>
                           <div style={{fontSize:13,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.05em'}}>Pacientes em {row.esp}</div>
-                          <input placeholder="Buscar criança por nome..." value={qPaciente} onChange={e=>setQPaciente(e.target.value)} style={{maxWidth:240}} onClick={e=>e.stopPropagation()}/>
+                          <input placeholder="Buscar criança por nome..." value={qPaciente} onChange={e=>setQPaciente(valorCaixaAlta(e))} style={{maxWidth:240}} onClick={e=>e.stopPropagation()}/>
                         </div>
                         <table style={{marginBottom:14}}>
                           <thead><tr><th>#</th><th>Nome</th><th>Data de nascimento</th><th>Idade</th><th></th></tr></thead>
@@ -4328,7 +4340,7 @@ function ProfessionalCaseloadTab({ therapies, patients, professionals }){
 
     <div className="card">
       <div className="toolbar" style={{marginBottom:18}}>
-        <input placeholder="Buscar profissional..." value={q} onChange={e=>setQ(e.target.value)} />
+        <input placeholder="Buscar profissional..." value={q} onChange={e=>setQ(valorCaixaAlta(e))} />
         <select style={{maxWidth:220}} value={fProfissional} onChange={e=>setFProfissional(e.target.value)}>
           <option value="">Profissional (todos)</option>
           {(professionals||[]).slice().sort((a,b)=>a.nome.localeCompare(b.nome)).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
@@ -4718,7 +4730,6 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
-
 
 
 
