@@ -4308,12 +4308,24 @@ function ProfessionalCaseloadTab({ therapies, patients, professionals }){
       map[t.profissionalId].sessoes++;
       if(t.status === "Realizada") map[t.profissionalId].realizadas++;
     });
+    // Vínculos feitos diretamente na aba "Pacientes Ativos por Terapia" (select de
+    // profissional na tabela de tipo de terapia) — contam aqui mesmo que ainda não
+    // exista nenhuma sessão registrada para essa criança com esse profissional.
+    (patients||[]).forEach(pac => {
+      (pac.terapiasNecessarias||[]).forEach(t => {
+        if(!t.profissionalId) return;
+        if(!map[t.profissionalId]){
+          map[t.profissionalId] = { prof: { id: t.profissionalId, nome: "Profissional removido", especialidade: "—", status: "—" }, pacientes: new Set(), sessoes: 0, realizadas: 0 };
+        }
+        map[t.profissionalId].pacientes.add(pac.id);
+      });
+    });
     return Object.values(map).map(d => ({
       ...d,
       pacientesIds: [...d.pacientes],
       totalPacientes: d.pacientes.size
     })).sort((a,b) => b.totalPacientes - a.totalPacientes);
-  }, [therapies, professionals]);
+  }, [therapies, professionals, patients]);
 
   const filtered = useMemo(() => {
     const t = q.toLowerCase();
@@ -4328,7 +4340,11 @@ function ProfessionalCaseloadTab({ therapies, patients, professionals }){
   const clearAll = () => { setQ(""); setFCategoria(""); setFProfissional(""); };
 
   const totalComPacientes = byProf.filter(d => d.totalPacientes > 0).length;
-  const totalPacientesUnicos = useMemo(() => new Set(therapies.map(t=>t.pacienteId)).size, [therapies]);
+  const totalPacientesUnicos = useMemo(() => {
+    const s = new Set(therapies.map(t=>t.pacienteId));
+    (patients||[]).forEach(pac => (pac.terapiasNecessarias||[]).forEach(t => { if(t.profissionalId) s.add(pac.id); }));
+    return s.size;
+  }, [therapies, patients]);
 
   return <div>
     <div className="stat-grid">
@@ -4730,7 +4746,6 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
-
 
 
 
