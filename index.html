@@ -722,7 +722,7 @@ function ConfirmModal({ title, text, onConfirm, onCancel }){
   </div>;
 }
 
-function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDelete, tiposTerapia }){
+function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDelete, tiposTerapia, professionals }){
   const [form, setForm] = useState(editTarget || blankPatient());
   useEffect(()=>{ setForm(editTarget || blankPatient()); }, [editTarget]);
   const set = (k) => (e) => setForm(f => ({...f, [k]: valorCaixaAlta(e)}));
@@ -799,6 +799,9 @@ function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDele
   };
   const setTerapiaPosTriagem = (tipo, val) => {
     setForm(f => ({ ...f, terapiasNecessarias: (f.terapiasNecessarias||[]).map(t => t.tipo===tipo ? {...t, posTriagem: val} : t) }));
+  };
+  const setTerapiaProfissional = (tipo, profissionalId) => {
+    setForm(f => ({ ...f, terapiasNecessarias: (f.terapiasNecessarias||[]).map(t => t.tipo===tipo ? {...t, profissionalId: profissionalId || null} : t) }));
   };
   const moveTerapia = (idx, dir) => {
     setForm(f => {
@@ -921,6 +924,10 @@ function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDele
                   <option value="Lista de espera">Lista de espera</option>
                   <option value="Alta">Alta</option>
                   <option value="Finalizado">Finalizado</option>
+                </select>
+                <select style={{maxWidth:190}} value={t.profissionalId || ""} onChange={e=>setTerapiaProfissional(t.tipo, e.target.value)}>
+                  <option value="">Sem profissional</option>
+                  {(professionals||[]).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select>
                 {t.status === "Ativo" && (
                   <label style={{display:'flex', alignItems:'center', gap:6, margin:0, cursor:'pointer', fontSize:12.5, fontWeight:600, color:'var(--muted)', whiteSpace:'nowrap'}}>
@@ -4718,7 +4725,7 @@ function App(){
     </div>
 
     {tab==="dashboard" && <DashboardTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} alerts={alerts} onGoTo={goTo}/>}
-    {tab==="cadastro" && <PatientForm patients={pat.items} save={pat.save} notify={notify} editTarget={editingPatient} onDone={()=>{ setEditingPatient(null); setTab("pacientes"); }} onRequestDelete={(p)=>setConfirmDel(p)} tiposTerapia={tiposTerapia.tipos}/>}
+    {tab==="cadastro" && <PatientForm patients={pat.items} save={pat.save} notify={notify} editTarget={editingPatient} onDone={()=>{ setEditingPatient(null); setTab("pacientes"); }} onRequestDelete={(p)=>setConfirmDel(p)} tiposTerapia={tiposTerapia.tipos} professionals={pro.items}/>}
     {tab==="pacientes" && <PatientsList patients={pat.items} loading={pat.loading} filterConfigs={filterCfg.configs} therapies={ther.items} pts={pts.items} professionals={pro.items} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} onDelete={(p)=>setConfirmDel(p)} podeVerRegistros={rolePerms.canAccess(currentUser?.role, REGISTROS_PERM_ID)}/>}
     {tab==="lista-espera" && <WaitingListTab patients={pat.items} loading={pat.loading} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} professionals={pro.items} tiposTerapia={tiposTerapia.tipos} savePatient={pat.save} saveTherapy={ther.save} notify={notify} onColocarAtendimento={goToAtendimento}/>}
     {tab==="quantitativo" && <QuantitativoTab therapies={ther.items} patients={pat.items} professionals={pro.items} onDarAlta={goToDarAlta} onRegistrarSessao={goToAtendimento} savePatient={pat.save} notify={notify}/>}
@@ -4746,6 +4753,7 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
+
 
 
 
