@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
 <title>Sistema de cadastro e monitoramento de pacientes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -57,33 +60,78 @@
 </script>
 <style>
   :root{
-    --bg:#f0f4f9;
+    --bg:#f3f5fa;
     --panel:#ffffff;
     --panel2:#f7f9fc;
-    --border:#e2e8f0;
+    --border:#e5e9f0;
     --border-strong:#c9d4e3;
-    --text:#1a2233;
-    --muted:#64748b;
-    --accent:#3b6ff0;
-    --accent-soft:#ebf0fe;
-    --accent-dark:#2454c7;
-    --danger:#e03e3e;
-    --danger-soft:#fef2f2;
+    --text:#171d2b;
+    --muted:#66708a;
+    --accent:#4658f0;
+    --accent-soft:#eceeff;
+    --accent-dark:#3444c9;
+    --accent2:#0ea5a5;
+    --accent2-soft:#e6fbfb;
+    --danger:#e0405a;
+    --danger-soft:#fef1f3;
     --ok:#16a34a;
     --ok-soft:#f0fdf4;
     --warn:#d97706;
     --warn-soft:#fffbeb;
-    --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
-    --shadow-md: 0 4px 16px rgba(0,0,0,.10);
+    --shadow: 0 1px 2px rgba(23,29,43,.05), 0 3px 10px rgba(23,29,43,.05);
+    --shadow-md: 0 8px 24px rgba(23,29,43,.10);
+    --shadow-lg: 0 16px 40px rgba(23,29,43,.14);
+    --radius: 14px;
   }
-  #app-root, #app-root *{ box-sizing:border-box; font-family: -apple-system, "Segoe UI", Inter, Roboto, sans-serif; }
-  #app-root{ background:var(--bg); color:var(--text); min-height:100%; padding:28px 24px 60px; }
+  @keyframes fadeSlideIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+  @keyframes shimmer{ 0%{ background-position:-400px 0; } 100%{ background-position:400px 0; } }
+  @keyframes popIn{ from{ opacity:0; transform:scale(.97); } to{ opacity:1; transform:scale(1); } }
+  .fade-in{ animation:fadeSlideIn .28s cubic-bezier(.16,.84,.44,1) both; }
+  .skeleton{ background:linear-gradient(90deg,#eef1f7 0%,#f7f9fc 50%,#eef1f7 100%); background-size:400px 100%; animation:shimmer 1.3s infinite linear; border-radius:8px; }
+  #app-root, #app-root *{ box-sizing:border-box; font-family:'Inter',-apple-system,"Segoe UI",Roboto,sans-serif; }
+  #app-root{ background:var(--bg); color:var(--text); min-height:100%; }
+  #app-root *{ transition:background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s; }
 
   .header{ display:flex; align-items:center; gap:16px; margin-bottom:18px; }
-  .logo{ width:52px; height:52px; border-radius:14px; background:var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 12px rgba(59,111,240,.35); }
+  .logo{ width:52px; height:52px; border-radius:14px; background:linear-gradient(135deg,var(--accent),#6c7bf5); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 12px rgba(70,88,240,.35); }
   .logo svg{ width:24px; height:24px; }
   .header h1{ font-size:19px; font-weight:700; margin:0; color:var(--text); }
   .header p{ font-size:13px; color:var(--muted); margin:3px 0 0; }
+
+  .app-shell{ display:flex; min-height:100vh; align-items:stretch; }
+  .sidebar{ width:252px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow-y:auto; z-index:5; transition:width .18s ease; }
+  .sidebar.collapsed{ width:76px; }
+  .sidebar-brand{ display:flex; align-items:center; gap:12px; padding:20px 18px 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .sidebar-brand .logo{ width:40px; height:40px; border-radius:11px; }
+  .sidebar-brand .logo svg{ width:19px; height:19px; }
+  .sidebar-brand-text{ overflow:hidden; white-space:nowrap; }
+  .sidebar-brand-text h1{ font-size:14px; font-weight:800; margin:0; line-height:1.25; }
+  .sidebar-brand-text p{ font-size:11px; color:var(--muted); margin:2px 0 0; }
+  .sidebar.collapsed .sidebar-brand-text{ display:none; }
+  .sidebar-collapse-btn{ margin-left:auto; width:26px; height:26px; border-radius:7px; border:1px solid var(--border); background:var(--panel2); color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+  .sidebar-collapse-btn:hover{ color:var(--accent); border-color:var(--accent); }
+  .sidebar.collapsed .sidebar-collapse-btn{ margin:0 auto; }
+  .sidebar-nav{ flex:1; padding:14px 10px 18px; display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
+  .nav-group-title{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#9aa4ba; margin:14px 10px 6px; white-space:nowrap; overflow:hidden; }
+  .nav-group-title:first-child{ margin-top:2px; }
+  .sidebar.collapsed .nav-group-title{ opacity:0; height:6px; margin:8px 0 0; }
+  .nav-item{ display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; color:var(--muted); font-size:13.5px; font-weight:500; cursor:pointer; border:none; background:none; width:100%; text-align:left; white-space:nowrap; overflow:hidden; }
+  .nav-item svg{ flex-shrink:0; }
+  .nav-item span{ overflow:hidden; text-overflow:ellipsis; }
+  .nav-item:hover{ background:var(--accent-soft); color:var(--accent); }
+  .nav-item.active{ background:var(--accent); color:#fff; box-shadow:0 4px 12px rgba(70,88,240,.28); font-weight:700; }
+  .sidebar.collapsed .nav-item{ justify-content:center; padding:10px; }
+  .sidebar.collapsed .nav-item span{ display:none; }
+  .main-content{ flex:1; min-width:0; padding:24px 28px 60px; }
+  @media(max-width:900px){
+    .app-shell{ flex-direction:column; }
+    .sidebar{ width:100%!important; height:auto; position:relative; flex-direction:row; overflow-x:auto; overflow-y:visible; border-right:none; border-bottom:1px solid var(--border); }
+    .sidebar-brand{ border-bottom:none; border-right:1px solid var(--border); flex-shrink:0; }
+    .sidebar-nav{ flex-direction:row; padding:10px; overflow-x:auto; flex:none; }
+    .nav-group-title{ display:none; }
+    .nav-item{ flex-shrink:0; }
+    .main-content{ padding:18px 14px 50px; }
+  }
 
   .banner{ background:var(--warn-soft); border:1px solid #fde68a; color:var(--warn); border-radius:12px; padding:13px 16px; font-size:13px; line-height:1.5; margin-bottom:22px; display:flex; gap:10px; }
 
@@ -115,14 +163,14 @@
   .field{ margin-bottom:4px; }
 
   .actions-row{ display:flex; gap:10px; margin-top:26px; flex-wrap:wrap; align-items:center; }
-  .btn{ padding:11px 20px; border-radius:9px; font-size:14px; font-weight:600; cursor:pointer; border:1.5px solid transparent; transition:.15s; }
-  .btn-primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
-  .btn-primary:hover{ background:var(--accent-dark); border-color:var(--accent-dark); }
+  .btn{ padding:11px 20px; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; border:1.5px solid transparent; transition:.15s; }
+  .btn-primary{ background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:0 2px 8px rgba(70,88,240,.25); }
+  .btn-primary:hover{ background:var(--accent-dark); border-color:var(--accent-dark); transform:translateY(-1px); box-shadow:0 6px 16px rgba(70,88,240,.32); }
   .btn-secondary{ background:var(--panel); border-color:var(--border); color:var(--text); }
   .btn-secondary:hover{ border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
   .btn-danger{ background:var(--danger-soft); border-color:#fca5a5; color:var(--danger); display:inline-flex; align-items:center; gap:8px; }
   .btn-danger:hover{ background:#fee2e2; border-color:var(--danger); }
-  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; transform:none!important; }
 
   .toolbar{ display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap; align-items:center; }
   .toolbar input{ max-width:300px; }
@@ -134,9 +182,13 @@
   th:last-child{ border-radius:0 8px 0 0; }
   td{ padding:13px 14px; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text); }
   tr:last-child td{ border-bottom:none; }
-  tr:hover td{ background:#f8faff; }
+  tbody tr:nth-child(even) td{ background:#fafbfd; }
+  tr:hover td{ background:#eef1ff!important; }
+  .row-actions{ opacity:1; }
   .empty-state{ text-align:center; padding:56px 20px; color:var(--muted); font-size:14px; }
   .empty-state svg{ margin-bottom:12px; opacity:.35; }
+
+  .row-avatar{ width:32px; height:32px; border-radius:99px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#fff; flex-shrink:0; }
 
   .badge{ display:inline-block; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:700; }
   .badge-ativo{ background:var(--ok-soft); color:var(--ok); border:1px solid #bbf7d0; }
@@ -150,7 +202,7 @@
   .icon-btn:hover{ border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
   .icon-btn.danger:hover{ border-color:var(--danger); color:var(--danger); background:var(--danger-soft); }
 
-  .card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:24px; box-shadow:var(--shadow); }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow); }
   .toast{ position:fixed; bottom:24px; right:24px; background:var(--text); color:#fff; padding:13px 20px; border-radius:10px; font-size:14px; font-weight:500; box-shadow:var(--shadow-md); z-index:999; opacity:0; transform:translateY(8px); transition:.25s; pointer-events:none; }
   .toast.show{ opacity:1; transform:translateY(0); }
 
@@ -191,10 +243,16 @@
 
   .dash-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
   @media(max-width:900px){ .dash-grid{ grid-template-columns:repeat(2,1fr); } }
-  .dash-card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow); display:flex; align-items:center; gap:16px; }
+  .dash-card{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:20px 22px; box-shadow:var(--shadow); display:flex; align-items:center; gap:16px; cursor:default; animation:popIn .25s ease both; }
+  .dash-card[style*="cursor:pointer"]:hover{ transform:translateY(-3px); box-shadow:var(--shadow-md); border-color:var(--border-strong); }
   .dash-card-icon{ width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:22px; }
   .dash-card-num{ font-size:30px; font-weight:800; line-height:1; }
   .dash-card-label{ font-size:12.5px; color:var(--muted); margin-top:3px; font-weight:500; }
+  .dash-card.featured{ background:linear-gradient(135deg,var(--accent) 0%,#6c7bf5 100%); border:none; box-shadow:0 10px 28px rgba(70,88,240,.32); grid-column:span 2; }
+  .dash-card.featured .dash-card-icon{ background:rgba(255,255,255,.22)!important; }
+  .dash-card.featured .dash-card-num{ color:#fff!important; font-size:36px; }
+  .dash-card.featured .dash-card-label{ color:rgba(255,255,255,.85); font-weight:600; }
+  @media(max-width:900px){ .dash-card.featured{ grid-column:span 2; } }
   .dash-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
   @media(max-width:720px){ .dash-row{ grid-template-columns:1fr; } }
 
@@ -982,6 +1040,14 @@ function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDele
   </div>;
 }
 
+const AVATAR_PALETTE = ["#4658f0","#0ea5a5","#7c3aed","#db2777","#d97706","#16a34a","#2563eb","#c2410c"];
+function Avatar({ name, size=32 }){
+  const initials = (name||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase() || "?";
+  let sum = 0; for(let i=0;i<(name||"").length;i++) sum += name.charCodeAt(i);
+  const color = AVATAR_PALETTE[sum % AVATAR_PALETTE.length];
+  return <span className="row-avatar" style={{background:color, width:size, height:size, fontSize:size*0.36}}>{initials}</span>;
+}
+
 function StatusBadge({ status }){
   const cls = status === "Ativo" ? "badge-ativo"
     : status === "Em pausa" ? "badge-pausa"
@@ -1313,7 +1379,9 @@ function PatientsList({ patients, loading, onEdit, onDelete, filterConfigs, ther
       {(hasFilters || dynF.hasAny) && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={clearAll}>Limpar filtros</button>}
       <span className="count-pill">{filtered.length} paciente{filtered.length!==1?"s":""}</span>
     </div>
-    {loading ? <div className="loading">Carregando...</div> :
+    {loading ? <div style={{display:'flex', flexDirection:'column', gap:10, padding:'6px 0'}}>
+      {[0,1,2,3].map(i => <div key={i} className="skeleton" style={{height:44, borderRadius:10, opacity:1-(i*0.15)}}/>)}
+    </div> :
     filtered.length === 0 ? (
       <div className="empty-state">
         <IconUsers/>
@@ -1326,7 +1394,10 @@ function PatientsList({ patients, loading, onEdit, onDelete, filterConfigs, ther
           {filtered.map(p => (
             <tr key={p.id}>
               <td>
-                <button className="name-link" onClick={()=>setViewingPatient(p)}>{p.nome}</button>
+                <div style={{display:'flex', alignItems:'center', gap:10}}>
+                  <Avatar name={p.nome}/>
+                  <button className="name-link" onClick={()=>setViewingPatient(p)}>{p.nome}</button>
+                </div>
               </td>
               <td>{p.nascimento ? new Date(p.nascimento+"T00:00").toLocaleDateString('pt-BR') : "—"}</td>
               <td>{p.responsavel}</td>
@@ -1421,14 +1492,16 @@ function ProfessionalsTab({ professionals, loading, save, remove, notify, filter
         {(hasFilters || dynF.hasAny) && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={clearAll}>Limpar filtros</button>}
         <span className="count-pill">{filtered.length} profissional{filtered.length!==1?"is":""}</span>
       </div>
-      {loading ? <div className="loading">Carregando...</div> :
+      {loading ? <div style={{display:'flex', flexDirection:'column', gap:10, padding:'6px 0'}}>
+      {[0,1,2,3].map(i => <div key={i} className="skeleton" style={{height:44, borderRadius:10, opacity:1-(i*0.15)}}/>)}
+    </div> :
       filtered.length === 0 ? <div className="empty-state"><IconUsers/><div>Nenhum profissional encontrado.</div></div> :
       <table>
         <thead><tr><th>Nome</th><th>Especialidade</th><th>Registro</th><th>Contato</th><th>Status</th><th></th></tr></thead>
         <tbody>
           {filtered.map(p => (
             <tr key={p.id}>
-              <td>{p.nome}</td><td>{p.especialidade}</td><td>{p.registro||"—"}</td>
+              <td><div style={{display:'flex', alignItems:'center', gap:10}}><Avatar name={p.nome} size={28}/>{p.nome}</div></td><td>{p.especialidade}</td><td>{p.registro||"—"}</td>
               <td>{p.telefone || p.email || "—"}</td>
               <td><StatusBadge status={p.status}/></td>
               <td><div className="row-actions">
@@ -1663,7 +1736,9 @@ function TherapiesTab({ therapies, patients, professionals, loading, save, remov
         {(hasFilters || dynF.hasAny) && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={clearAll}>Limpar filtros</button>}
         <span className="count-pill">{filteredTherapies.length} sessão(ões)</span>
       </div>
-      {loading ? <div className="loading">Carregando...</div> :
+      {loading ? <div style={{display:'flex', flexDirection:'column', gap:10, padding:'6px 0'}}>
+      {[0,1,2,3].map(i => <div key={i} className="skeleton" style={{height:44, borderRadius:10, opacity:1-(i*0.15)}}/>)}
+    </div> :
       filteredTherapies.length === 0 ? <div className="empty-state"><IconUsers/><div>Nenhuma sessão encontrada.</div></div> :
       <table>
         <thead><tr><th>Paciente</th><th>Profissional</th><th>Tipo</th><th>Data</th><th>Status</th><th></th></tr></thead>
@@ -2942,7 +3017,9 @@ function FiltrosTab({ configs, loading, add, remove, move, notify, tiposTerapia,
       </div>
     </div>
 
-    {loading ? <div className="loading">Carregando...</div> :
+    {loading ? <div style={{display:'flex', flexDirection:'column', gap:10, padding:'6px 0'}}>
+      {[0,1,2,3].map(i => <div key={i} className="skeleton" style={{height:44, borderRadius:10, opacity:1-(i*0.15)}}/>)}
+    </div> :
     sections.map(sec => {
       const group = configs.filter(c => c.section === sec);
       return <div key={sec} className="card" style={{marginBottom:16}}>
@@ -3283,7 +3360,9 @@ function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatient
         <input placeholder="Buscar por nome do paciente..." value={search} onChange={e=>setSearch(valorCaixaAlta(e))} />
         <span className="count-pill">{filteredPTS.length} PTS</span>
       </div>
-      {loading ? <div className="loading">Carregando...</div> :
+      {loading ? <div style={{display:'flex', flexDirection:'column', gap:10, padding:'6px 0'}}>
+      {[0,1,2,3].map(i => <div key={i} className="skeleton" style={{height:44, borderRadius:10, opacity:1-(i*0.15)}}/>)}
+    </div> :
       filteredPTS.length === 0
         ? <div className="empty-state"><IconUsers/><div>Nenhum PTS cadastrado ainda.</div></div>
         : <table>
@@ -3445,7 +3524,9 @@ function WaitingListTab({ patients, loading, onEdit, professionals, tiposTerapia
           }
         </span>
       </div>
-      {loading ? <div className="loading">Carregando...</div> :
+      {loading ? <div style={{display:'flex', flexDirection:'column', gap:10, padding:'6px 0'}}>
+      {[0,1,2,3].map(i => <div key={i} className="skeleton" style={{height:44, borderRadius:10, opacity:1-(i*0.15)}}/>)}
+    </div> :
       waiting.length === 0
         ? <div className="empty-state">
             <IconUsers/>
@@ -3882,7 +3963,9 @@ function UsersTab({ usersHook, currentUser, notify, rolePerms }){
 
     <div className="card">
       <div className="section-title">Usuários cadastrados ({users.length})</div>
-      {loading ? <div className="loading">Carregando...</div> :
+      {loading ? <div style={{display:'flex', flexDirection:'column', gap:10, padding:'6px 0'}}>
+      {[0,1,2,3].map(i => <div key={i} className="skeleton" style={{height:44, borderRadius:10, opacity:1-(i*0.15)}}/>)}
+    </div> :
       users.length === 0 ? <div className="empty-state"><IconUsers/><div>Nenhum usuário.</div></div> :
       <table>
         <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Criado em</th><th></th></tr></thead>
@@ -4525,8 +4608,8 @@ function DashboardTab({ patients, professionals, therapies, pts, alerts, onGoTo 
 
   const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
 
-  const DCard = ({icon,bg,num,label,color,onClick}) => (
-    <div className="dash-card" style={{cursor:onClick?"pointer":"default"}} onClick={onClick}>
+  const DCard = ({icon,bg,num,label,color,onClick,featured}) => (
+    <div className={"dash-card"+(featured?" featured":"")} style={{cursor:onClick?"pointer":"default"}} onClick={onClick}>
       <div className="dash-card-icon" style={{background:bg}}>{icon}</div>
       <div>
         <div className="dash-card-num" style={{color}}>{num}</div>
@@ -4539,7 +4622,7 @@ function DashboardTab({ patients, professionals, therapies, pts, alerts, onGoTo 
     {/* Pacientes */}
     <div className="section-title">Pacientes</div>
     <div className="dash-grid">
-      <DCard icon="👥" bg="#ebf0fe" num={patients.length} label="Total de pacientes" color="var(--accent)" onClick={()=>onGoTo("pacientes")}/>
+      <DCard featured icon="👥" bg="#ebf0fe" num={patients.length} label="Total de pacientes" color="var(--accent)" onClick={()=>onGoTo("pacientes")}/>
       <DCard icon="✅" bg="#f0fdf4" num={ativos} label="Ativos" color="var(--ok)" onClick={()=>onGoTo("pacientes")}/>
       <DCard icon="⏳" bg="#f0f0ff" num={espera} label="Lista de espera" color="#6366f1" onClick={()=>onGoTo("lista-espera")}/>
     </div>
@@ -4564,30 +4647,6 @@ function DashboardTab({ patients, professionals, therapies, pts, alerts, onGoTo 
       </div>
     </>}
 
-    {/* Alertas */}
-    {alerts.length > 0 && <div className="card">
-      <div className="section-title">⚠️ Alertas pendentes ({alerts.length})</div>
-      <div style={{display:'flex', flexDirection:'column', gap:8}}>
-        {alerts.slice(0,5).map(a=>(
-          <div key={a.id} className={"notif-item " + (a.tipo==="urgente"?"red":a.tipo==="atencao"?"orange":"yellow")}
-            style={{cursor:'pointer'}} onClick={()=>onGoTo(a.aba)}>
-            <div className={"notif-dot " + (a.tipo==="urgente"?"red":a.tipo==="atencao"?"orange":"yellow")}/>
-            <div style={{flex:1}}>
-              <div className="notif-title">{a.titulo}</div>
-              <div className="notif-sub">{a.desc}</div>
-            </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{color:'var(--muted)',flexShrink:0}}><path d="m9 18 6-6-6-6"/></svg>
-          </div>
-        ))}
-        {alerts.length > 5 && <div style={{textAlign:'center', fontSize:13, color:'var(--muted)', paddingTop:4}}>+ {alerts.length-5} alerta(s) adicionais</div>}
-      </div>
-    </div>}
-
-    {alerts.length === 0 && <div className="card" style={{textAlign:'center', padding:'28px 20px'}}>
-      <div style={{fontSize:36, marginBottom:10}}>✅</div>
-      <div style={{fontWeight:700, marginBottom:4}}>Tudo em dia!</div>
-      <div style={{fontSize:13, color:'var(--muted)'}}>Nenhum alerta pendente de PTS ou lista de espera.</div>
-    </div>}
   </div>;
 }
 
@@ -4621,7 +4680,7 @@ function App(){
   };
   const [confirmDel, setConfirmDel] = useState(null);
   const [showNotif, setShowNotif] = useState(false);
-
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pat = useCollection("pacientes");
   const pro = useCollection("profissionais");
   const ther = useCollection("sessoes_terapia");
@@ -4654,28 +4713,56 @@ function App(){
   const initials = (n) => n ? n.split(" ").slice(0,2).map(w=>w[0]).join("").toUpperCase() : "?";
 
   const tabs = [
-    {id:"dashboard", label:"Dashboard", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>},
-    {id:"cadastro", label: editingPatient ? "Editando cadastro" : "Novo cadastro", icon:<IconPlus/>},
-    {id:"pacientes", label:"Pacientes Cadastrados", icon:<IconSearch/>},
-    {id:"lista-espera", label:`Lista de espera por terapia (${pat.items.filter(p=>p.status==="Lista de espera" || (p.terapiasNecessarias||[]).some(t=>t.status==="Lista de espera")).length})`, icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
-    {id:"quantitativo", label:"Pacientes Ativos por Terapia", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>},
-    {id:"por-profissional", label:"Pacientes por profissional", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>},
-    {id:"profissionais", label:"Profissionais", icon:<IconUsers/>},
-    {id:"terapias", label:"Registrar Terapias", icon:<IconUsers/>},
-    {id:"pts", label:"PTS e Alta", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>},
-    {id:"filtros", label:"Filtros", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>},
-    {id:"exportar", label:"Exportar", icon:<IconUsers/>},
-    {id:"assistente-ia", label:"Assistente IA", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>},
-    {id:"avaliacoes", label:"Avaliação da triagem", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>},
-    ...(isAdmin ? [{id:"usuarios", label:"Usuários", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}] : []),
-    {id:"minha-conta", label:"Minha conta", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>},
+    {id:"dashboard", group:"Visão geral", label:"Dashboard", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>},
+    {id:"cadastro", group:"Pacientes", label: editingPatient ? "Editando cadastro" : "Novo cadastro", icon:<IconPlus/>},
+    {id:"pacientes", group:"Pacientes", label:"Pacientes Cadastrados", icon:<IconSearch/>},
+    {id:"lista-espera", group:"Pacientes", label:`Lista de espera por terapia (${pat.items.filter(p=>p.status==="Lista de espera" || (p.terapiasNecessarias||[]).some(t=>t.status==="Lista de espera")).length})`, icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
+    {id:"quantitativo", group:"Pacientes", label:"Pacientes Ativos por Terapia", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>},
+    {id:"por-profissional", group:"Pacientes", label:"Pacientes por profissional", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>},
+    {id:"profissionais", group:"Equipe", label:"Profissionais", icon:<IconUsers/>},
+    {id:"terapias", group:"Equipe", label:"Registrar Terapias", icon:<IconUsers/>},
+    {id:"pts", group:"Clínico", label:"PTS e Alta", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>},
+    {id:"avaliacoes", group:"Clínico", label:"Avaliação da triagem", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>},
+    {id:"filtros", group:"Relatórios", label:"Filtros", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>},
+    {id:"exportar", group:"Relatórios", label:"Exportar", icon:<IconUsers/>},
+    {id:"assistente-ia", group:"Relatórios", label:"Assistente IA", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>},
+    ...(isAdmin ? [{id:"usuarios", group:"Conta", label:"Usuários", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}] : []),
+    {id:"minha-conta", group:"Conta", label:"Minha conta", icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>},
   ].filter(t => t.id === "usuarios" || t.id === "minha-conta" || rolePerms.canAccess(currentUser?.role, t.id));
+  const tabGroups = [];
+  tabs.forEach(t => { if(!tabGroups.includes(t.group)) tabGroups.push(t.group); });
 
-  return <div>
-    <div className="header">
-      <div className="logo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="1.6"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+  return <div className="app-shell">
+    <div className={"sidebar"+(sidebarCollapsed?" collapsed":"")}>
+      <div className="sidebar-brand">
+        <div className="logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="1.6"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div className="sidebar-brand-text">
+          <h1>Painel de pacientes</h1>
+          <p>Equipe compartilhada</p>
+        </div>
+        <button className="sidebar-collapse-btn" onClick={()=>setSidebarCollapsed(v=>!v)} title={sidebarCollapsed?"Expandir menu":"Recolher menu"}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{transform:sidebarCollapsed?"rotate(180deg)":"none"}}><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
       </div>
+      <div className="sidebar-nav">
+        {tabGroups.map(g => (
+          <React.Fragment key={g}>
+            <div className="nav-group-title">{g}</div>
+            {tabs.filter(t=>t.group===g).map(t => (
+              <button key={t.id} className={"nav-item"+(tab===t.id?" active":"")} title={sidebarCollapsed?t.label:undefined}
+                onClick={()=>{ setTab(t.id); if(t.id!=="cadastro") setEditingPatient(null); }}>
+                {t.icon}<span>{t.label}</span>
+              </button>
+            ))}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+
+    <div className="main-content">
+    <div className="header">
       <div style={{flex:1}}>
         <h1>Sistema de cadastro e monitoramento de pacientes</h1>
         <p>Dados compartilhados com a equipe</p>
@@ -4705,15 +4792,7 @@ function App(){
 
     {showNotif && <NotificationPanel alerts={alerts} onClose={()=>setShowNotif(false)} onGoTo={goTo}/>}
 
-    <div className="tabs">
-      {tabs.map(t => (
-        <button key={t.id} className={"tab"+(tab===t.id?" active":"")}
-          onClick={()=>{ setTab(t.id); if(t.id!=="cadastro") setEditingPatient(null); }}>
-          {t.icon}{t.label}
-        </button>
-      ))}
-    </div>
-
+    <div key={tab} className="fade-in">
     {tab==="dashboard" && <DashboardTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} alerts={alerts} onGoTo={goTo}/>}
     {tab==="cadastro" && <PatientForm patients={pat.items} save={pat.save} notify={notify} editTarget={editingPatient} onDone={()=>{ setEditingPatient(null); setTab("pacientes"); }} onRequestDelete={(p)=>setConfirmDel(p)} tiposTerapia={tiposTerapia.tipos} professionals={pro.items}/>}
     {tab==="pacientes" && <PatientsList patients={pat.items} loading={pat.loading} filterConfigs={filterCfg.configs} therapies={ther.items} pts={pts.items} professionals={pro.items} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} onDelete={(p)=>setConfirmDel(p)} podeVerRegistros={rolePerms.canAccess(currentUser?.role, REGISTROS_PERM_ID)}/>}
@@ -4729,6 +4808,7 @@ function App(){
     {tab==="avaliacoes" && <TriagensTab notify={notify} patients={pat.items} professionals={pro.items} tiposTerapia={tiposTerapia.tipos}/>}
     {tab==="usuarios" && isAdmin && <UsersTab usersHook={usersHook} currentUser={currentUser} notify={notify} rolePerms={rolePerms}/>}
     {tab==="minha-conta" && <MyAccountTab currentUser={currentUser} usersHook={usersHook} notify={notify}/>}
+    </div>
 
     {confirmDel && <ConfirmModal title="Excluir paciente"
       text={`Tem certeza que deseja excluir o cadastro de "${confirmDel.nome}"? Esta ação não pode ser desfeita.`}
@@ -4736,6 +4816,7 @@ function App(){
       onConfirm={async()=>{ await pat.remove(confirmDel.id); notify("Paciente excluído"); setConfirmDel(null); setEditingPatient(null); setTab("pacientes"); }}/>}
 
     <Toast message={toast}/>
+    </div>
   </div>;
 }
 
