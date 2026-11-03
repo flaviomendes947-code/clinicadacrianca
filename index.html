@@ -1947,6 +1947,24 @@ function AssistenteIATab({ notify }){
 }
 
 // ── Avaliações / Triagens importadas (somente consulta) ──────────────────────
+// ── Atraso escolar ───────────────────────────────────────────────────────────
+// A informação vem das colunas extras da planilha (campo "detalhes"). O nome exato
+// da coluna pode variar, então procuramos a chave que contém "ATRASO" (de preferência "ATRASO ... ESCOL").
+const normChave = (s) => (s||"").toString().normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase();
+const chaveAtrasoEscolar = (det) => {
+  const chaves = Object.keys(det || {});
+  return chaves.find(k => { const n = normChave(k); return n.includes("ATRASO") && n.includes("ESCOL"); })
+      || chaves.find(k => normChave(k).includes("ATRASO"))
+      || null;
+};
+const atrasoEscolarDe = (t) => {
+  const k = chaveAtrasoEscolar(t && t.detalhes);
+  const v = k ? normChave(t.detalhes[k]).trim() : "";
+  if(!v || v === "-" || v === "NAO INFORMADO" || v === "NULL") return { cat:"ni", valor:"" };
+  if(/^(NAO|N|NEGA|NENHUM|SEM)\b/.test(v)) return { cat:"nao", valor:t.detalhes[k] };
+  return { cat:"sim", valor:t.detalhes[k] };
+};
+
 // ── Nova triagem (formulário em painel lateral) ──────────────────────────────
 const PRIORIDADES_TRIAGEM = [
   { id:"Alta", desc:"Atender primeiro", bg:"var(--danger-soft)", color:"var(--danger)", border:"#fecaca" },
@@ -1956,7 +1974,7 @@ const PRIORIDADES_TRIAGEM = [
 const blankTriagem = () => ({
   nome:"", nascimento:"", cpf_cns:"", nome_mae:"", telefone:"", unidade:"",
   data_avaliacao: new Date().toISOString().slice(0,10), avaliador:"",
-  possui_laudo:"", apto_atividades_grupais:"", escala_prioridade:"",
+  possui_laudo:"", apto_atividades_grupais:"", atraso_escolar:"", escala_prioridade:"",
   indicacoes:[], obs:"", modo:"salvar"
 });
 
@@ -2027,7 +2045,16 @@ function NovaTriagemDrawer({ triagens, patients, tiposTerapia, currentUser, onCl
       escala_prioridade: f.escala_prioridade,
       indicacoes_terapeuticas: f.indicacoes.join(", ") || null,
       carimbo: new Date().toISOString(),
-      detalhes: f.obs ? { "OBSERVAÇÕES": f.obs } : {}
+      detalhes: (() => {
+        const d = {};
+        if(f.atraso_escolar){
+          // usa o mesmo nome de coluna das triagens importadas, para o filtro tratar tudo igual
+          const chaveExistente = (triagens||[]).map(t => chaveAtrasoEscolar(t.detalhes)).find(Boolean);
+          d[chaveExistente || "ATRASO ESCOLAR"] = normChave(f.atraso_escolar);
+        }
+        if(f.obs) d["OBSERVAÇÕES"] = f.obs;
+        return d;
+      })()
     };
     try{
       let res = await sb.from("triagens").insert(row).select().single();
@@ -2093,6 +2120,7 @@ function NovaTriagemDrawer({ triagens, patients, tiposTerapia, currentUser, onCl
             <Field label="Possui laudo?"><Segmentado campo="possui_laudo" opcoes={["Sim","Não","Em andamento"]}/></Field>
             <Field label="Apto a atividades grupais?"><Segmentado campo="apto_atividades_grupais" opcoes={["Sim","Não"]}/></Field>
           </div>
+          <Field label="Atraso escolar?"><Segmentado campo="atraso_escolar" opcoes={["Sim","Não"]}/></Field>
           <Field label="Escala de prioridade" required>
             <div style={{display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:8}}>
               {PRIORIDADES_TRIAGEM.map(p => {
@@ -2158,6 +2186,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia, currentUse
   const [fIdadeMin, setFIdadeMin] = useState("");
   const [fIdadeMax, setFIdadeMax] = useState("");
   const [fAcompanhada, setFAcompanhada] = useState("");
+  const [fAtraso, setFAtraso] = useState("");
   const [fDataAg, setFDataAg] = useState("");
   const [fProfissionalAg, setFProfissionalAg] = useState("");
   const [aberta, setAberta] = useState(null);
@@ -2176,7 +2205,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia, currentUse
     setTriagens(prev => [nova, ...prev].sort((a,b) => (b.data_avaliacao||"").localeCompare(a.data_avaliacao||"")));
     setNovaAberta(false);
     setDestaqueId(nova.id);
-    setQ(""); setFPrioridade(""); setFIndicacao(""); setFIdadeMin(""); setFIdadeMax(""); setFAcompanhada(""); setFDataAg(""); setFProfissionalAg("");
+    setQ(""); setFPrioridade(""); setFIndicacao(""); setFIdadeMin(""); setFIdadeMax(""); setFAcompanhada(""); setFAtraso(""); setFDataAg(""); setFProfissionalAg("");
     if(modo === "agendar"){
       setAberta(nova);
       setAddingAgendamentoFor(nova.id);
@@ -2537,6 +2566,7 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia, currentUse
       if(fIdadeMax !== "" && (idade === null || idade > parseInt(fIdadeMax,10))) return false;
       if(fAcompanhada === "sim" && !isAcompanhada(t)) return false;
       if(fAcompanhada === "nao" && isAcompanhada(t)) return false;
+      if(fAtraso && atrasoEscolarDe(t).cat !== fAtraso) return false;
       if(fDataAg && !agendamentosDe(t.id).some(a => a.data_agendamento === fDataAg)) return false;
       if(fProfissionalAg && !agendamentosDe(t.id).some(a => a.profissional_id === fProfissionalAg)) return false;
       if(!termo) return true;
@@ -2544,7 +2574,13 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia, currentUse
       const cpfMatch = termoDigits.length >= 3 && normDigits(t.cpf_cns).includes(termoDigits);
       return nomeMatch || cpfMatch;
     });
-  }, [triagens, q, fPrioridade, fIndicacao, fIdadeMin, fIdadeMax, fAcompanhada, fDataAg, fProfissionalAg, agendamentos, acompanhamentoSets]);
+  }, [triagens, q, fPrioridade, fIndicacao, fIdadeMin, fIdadeMax, fAcompanhada, fAtraso, fDataAg, fProfissionalAg, agendamentos, acompanhamentoSets]);
+
+  const contagemAtraso = useMemo(() => {
+    const c = { sim:0, nao:0, ni:0 };
+    triagens.forEach(t => { c[atrasoEscolarDe(t).cat]++; });
+    return c;
+  }, [triagens]);
 
   const corPrioridade = (p) => p==="Alta" ? {bg:'var(--danger-soft)', color:'var(--danger)', border:'#fecaca'}
     : p==="Moderada" ? {bg:'var(--warn-soft)', color:'var(--warn)', border:'#fde68a'}
@@ -2596,6 +2632,12 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia, currentUse
         <option value="">Acompanhada pela clínica (todas)</option>
         <option value="sim">Acompanhada pela clínica: SIM</option>
         <option value="nao">Acompanhada pela clínica: NÃO</option>
+      </select>
+      <select style={{maxWidth:220}} value={fAtraso} onChange={e=>setFAtraso(e.target.value)} title="Filtrar por atraso escolar">
+        <option value="">Atraso escolar (todos)</option>
+        <option value="sim">Atraso escolar: SIM ({contagemAtraso.sim})</option>
+        <option value="nao">Atraso escolar: NÃO ({contagemAtraso.nao})</option>
+        <option value="ni">Atraso escolar: não informado ({contagemAtraso.ni})</option>
       </select>
       <input type="date" style={{maxWidth:170}} value={fDataAg} onChange={e=>setFDataAg(e.target.value)} title="Filtrar por data de agendamento" />
       <select style={{maxWidth:200}} value={fProfissionalAg} onChange={e=>setFProfissionalAg(e.target.value)}>
