@@ -780,7 +780,7 @@ function ConfirmModal({ title, text, onConfirm, onCancel }){
   </div>;
 }
 
-function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDelete, tiposTerapia, professionals }){
+function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDelete, tiposTerapia, professionals, triagemInicial, onConsumeTriagemInicial }){
   const [form, setForm] = useState(editTarget || blankPatient());
   useEffect(()=>{ setForm(editTarget || blankPatient()); }, [editTarget]);
   const set = (k) => (e) => setForm(f => ({...f, [k]: valorCaixaAlta(e)}));
@@ -820,7 +820,14 @@ function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDele
 
   const fmtDataTriagem = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
 
-  const preencherDaTriagem = (t) => {
+  const preencherDaTriagem = (t, comIndicacoes) => {
+    // Quando vem da "Nova triagem → Salvar e cadastrar como paciente", as indicações
+    // terapêuticas entram já como terapias necessárias em lista de espera, na ordem marcada.
+    const indicacoes = comIndicacoes
+      ? (t.indicacoes_terapeuticas||"").split(",").map(s=>s.trim()).filter(Boolean)
+          .filter(tipo => !tiposTerapia || tiposTerapia.length===0 || tiposTerapia.includes(tipo))
+          .map(tipo => ({ tipo, status:"Lista de espera" }))
+      : [];
     setForm(f => ({
       ...blankPatient(),
       nome: t.nome || "",
@@ -828,12 +835,21 @@ function PatientForm({ patients, save, notify, editTarget, onDone, onRequestDele
       nascimento: t.nascimento || "",
       cpf: t.cpf_cns || "",
       telefone: t.telefone || "",
-      unidade: t.unidade || ""
+      unidade: t.unidade || "",
+      dataEntrada: comIndicacoes ? new Date().toISOString().slice(0,10) : "",
+      status: comIndicacoes && indicacoes.length ? "Lista de espera" : "Ativo",
+      terapiasNecessarias: indicacoes
     }));
     setTriagemSelecionada(t);
     setBuscaTriagem("");
     if(notify) notify("Dados da triagem carregados. Complete os demais campos.");
   };
+
+  useEffect(() => {
+    if(!triagemInicial || editTarget) return;
+    preencherDaTriagem(triagemInicial, true);
+    if(onConsumeTriagemInicial) onConsumeTriagemInicial();
+  }, [triagemInicial]);
 
   const limparTriagemSelecionada = () => {
     setTriagemSelecionada(null);
@@ -1931,7 +1947,208 @@ function AssistenteIATab({ notify }){
 }
 
 // ── Avaliações / Triagens importadas (somente consulta) ──────────────────────
-function TriagensTab({ notify, patients, professionals, tiposTerapia }){
+// ── Nova triagem (formulário em painel lateral) ──────────────────────────────
+const PRIORIDADES_TRIAGEM = [
+  { id:"Alta", desc:"Atender primeiro", bg:"var(--danger-soft)", color:"var(--danger)", border:"#fecaca" },
+  { id:"Moderada", desc:"Em breve", bg:"var(--warn-soft)", color:"var(--warn)", border:"#fde68a" },
+  { id:"Leve", desc:"Pode aguardar", bg:"var(--ok-soft)", color:"var(--ok)", border:"#bbf7d0" },
+];
+const blankTriagem = () => ({
+  nome:"", nascimento:"", cpf_cns:"", nome_mae:"", telefone:"", unidade:"",
+  data_avaliacao: new Date().toISOString().slice(0,10), avaliador:"",
+  possui_laudo:"", apto_atividades_grupais:"", escala_prioridade:"",
+  indicacoes:[], obs:"", modo:"salvar"
+});
+
+function NovaTriagemDrawer({ triagens, patients, tiposTerapia, currentUser, onClose, onSaved, notify }){
+  const [f, setF] = useState(blankTriagem());
+  const [erro, setErro] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const set = (k) => (e) => { const v = valorCaixaAlta(e); setF(p => ({...p, [k]: v})); setErro(""); };
+  const setVal = (k, v) => { setF(p => ({...p, [k]: v})); setErro(""); };
+  const normDigits = (s) => (s||"").replace(/\D/g, "");
+  const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
+
+  // Avisos de duplicidade: triagem com o mesmo CPF/CNS, ou criança já cadastrada como paciente
+  const dupTriagem = useMemo(() => {
+    const d = normDigits(f.cpf_cns);
+    if(d.length < 11) return null;
+    return (triagens||[]).find(t => normDigits(t.cpf_cns) === d) || null;
+  }, [f.cpf_cns, triagens]);
+  const pacienteExistente = useMemo(() => {
+    const d = normDigits(f.cpf_cns);
+    const nome = (f.nome||"").trim().toLowerCase();
+    return (patients||[]).find(p =>
+      (d.length >= 11 && normDigits(p.cpf) === d) ||
+      (nome && f.nascimento && (p.nome||"").trim().toLowerCase() === nome && p.nascimento === f.nascimento)
+    ) || null;
+  }, [f.cpf_cns, f.nome, f.nascimento, patients]);
+
+  const toggleIndicacao = (tipo) => setF(p => ({ ...p, indicacoes: p.indicacoes.includes(tipo) ? p.indicacoes.filter(x=>x!==tipo) : [...p.indicacoes, tipo] }));
+
+  const pillStyle = (on) => ({
+    minHeight:38, padding:'0 14px', borderRadius:20, fontSize:13, fontWeight:600, cursor:'pointer',
+    border:'1.5px solid '+(on?'var(--accent)':'var(--border)'), background: on?'var(--accent-soft)':'var(--panel)', color: on?'var(--accent-dark)':'var(--text)'
+  });
+  const Segmentado = ({ campo, opcoes }) => (
+    <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
+      {opcoes.map(o => (
+        <button key={o} type="button" style={pillStyle(f[campo]===o)} aria-pressed={f[campo]===o}
+          onClick={()=>setVal(campo, f[campo]===o ? "" : o)}>{o}</button>
+      ))}
+    </div>
+  );
+
+  const MODOS = [
+    { id:"salvar", label:"Só salvar a triagem", desc:"Volta para a lista com a nova triagem em destaque." },
+    { id:"agendar", label:"Salvar e agendar", desc:"Abre a ficha da triagem já com o agendamento aberto." },
+    { id:"paciente", label:"Salvar e cadastrar como paciente", desc:"Abre o Novo cadastro preenchido, com as indicações na lista de espera." },
+  ];
+  const rotuloSalvar = { salvar:"Salvar triagem", agendar:"Salvar e agendar", paciente:"Salvar e cadastrar" }[f.modo];
+
+  const salvar = async () => {
+    if(!f.nome || !f.nascimento || !f.data_avaliacao || !f.escala_prioridade){
+      setErro("Preencha nome, data de nascimento, data da avaliação e prioridade.");
+      return;
+    }
+    setSalvando(true);
+    const row = {
+      nome: f.nome.trim(),
+      nome_mae: f.nome_mae || null,
+      nascimento: f.nascimento || null,
+      cpf_cns: f.cpf_cns || null,
+      telefone: f.telefone || null,
+      unidade: f.unidade || null,
+      data_avaliacao: f.data_avaliacao || null,
+      avaliador: f.avaliador || null,
+      preenchido_por: currentUser ? currentUser.displayName : null,
+      possui_laudo: f.possui_laudo || null,
+      apto_atividades_grupais: f.apto_atividades_grupais || null,
+      escala_prioridade: f.escala_prioridade,
+      indicacoes_terapeuticas: f.indicacoes.join(", ") || null,
+      carimbo: new Date().toISOString(),
+      detalhes: f.obs ? { "OBSERVAÇÕES": f.obs } : {}
+    };
+    try{
+      let res = await sb.from("triagens").insert(row).select().single();
+      // Se a coluna id não tiver valor padrão no banco, gera um id aqui e tenta de novo
+      if(res.error && res.error.code === "23502" && /\bid\b/.test(res.error.message||"")){
+        res = await sb.from("triagens").insert({ ...row, id: uid() }).select().single();
+      }
+      if(res.error) throw res.error;
+      onSaved(res.data, f.modo);
+    }catch(e){
+      const msg = e && e.message ? e.message : String(e);
+      setErro("Não foi possível salvar: " + msg + (/row-level security|permission/i.test(msg) ? " — o banco ainda não permite inserir triagens (veja a política de RLS da tabela 'triagens')." : ""));
+      if(notify) notify("Erro ao salvar a triagem");
+    }
+    setSalvando(false);
+  };
+
+  const secao = {background:'var(--panel)', border:'1px solid var(--border)', borderRadius:14, padding:18, display:'flex', flexDirection:'column', gap:12};
+  const secaoTitulo = {margin:0, fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:'.07em', color:'var(--muted)'};
+
+  return <>
+    <div className="profile-overlay" onClick={onClose}/>
+    <div className="profile-drawer" style={{width:'min(620px,100%)'}} role="dialog" aria-label="Nova triagem">
+      <div className="profile-topbar">
+        <div style={{flex:1}}>
+          <h2>Nova triagem</h2>
+          <p>Campos com <span style={{color:'var(--danger)'}}>*</span> são obrigatórios · texto salvo em caixa alta</p>
+        </div>
+        <button className="icon-btn" onClick={onClose} aria-label="Fechar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div className="profile-body">
+        {dupTriagem && <div style={{background:'var(--warn-soft)', border:'1px solid #fde68a', color:'#92400e', borderRadius:10, padding:'11px 14px', fontSize:13, lineHeight:1.5}}>
+          <strong>Já existe uma triagem com este CPF/CNS</strong> ({dupTriagem.nome}, avaliada em {fmt(dupTriagem.data_avaliacao)}). Confira se não é a mesma criança antes de salvar.
+        </div>}
+        {pacienteExistente && <div style={{background:'var(--ok-soft)', border:'1px solid #bbf7d0', color:'#166534', borderRadius:10, padding:'11px 14px', fontSize:13, lineHeight:1.5}}>
+          <strong>{pacienteExistente.nome} já é paciente da clínica.</strong> A triagem aparecerá como “acompanhada pela clínica”.
+        </div>}
+
+        <div style={secao}>
+          <h3 style={secaoTitulo}>1 · Identificação da criança</h3>
+          <Field label="Nome completo" required><input value={f.nome} onChange={set('nome')} placeholder="Nome da criança" autoFocus/></Field>
+          <div className="grid grid-2">
+            <Field label="Data de nascimento" required><input type="date" value={f.nascimento} onChange={set('nascimento')}/></Field>
+            <Field label="CPF / CNS"><input value={f.cpf_cns} onChange={set('cpf_cns')} placeholder="000.000.000-00" inputMode="numeric"/></Field>
+          </div>
+          <div className="grid grid-2">
+            <Field label="Nome da mãe"><input value={f.nome_mae} onChange={set('nome_mae')} placeholder="Nome da mãe"/></Field>
+            <Field label="Telefone"><input value={f.telefone} onChange={set('telefone')} placeholder="(00) 00000-0000" inputMode="tel"/></Field>
+          </div>
+          <Field label="Unidade de saúde"><input value={f.unidade} onChange={set('unidade')} placeholder="Unidade que encaminhou"/></Field>
+        </div>
+
+        <div style={secao}>
+          <h3 style={secaoTitulo}>2 · Avaliação</h3>
+          <div className="grid grid-2">
+            <Field label="Data da avaliação" required><input type="date" value={f.data_avaliacao} onChange={set('data_avaliacao')}/></Field>
+            <Field label="Avaliador(a)"><input value={f.avaliador} onChange={set('avaliador')} placeholder="Profissional que avaliou"/></Field>
+          </div>
+          <div className="grid grid-2">
+            <Field label="Possui laudo?"><Segmentado campo="possui_laudo" opcoes={["Sim","Não","Em andamento"]}/></Field>
+            <Field label="Apto a atividades grupais?"><Segmentado campo="apto_atividades_grupais" opcoes={["Sim","Não"]}/></Field>
+          </div>
+          <Field label="Escala de prioridade" required>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:8}}>
+              {PRIORIDADES_TRIAGEM.map(p => {
+                const on = f.escala_prioridade === p.id;
+                return <button key={p.id} type="button" aria-pressed={on} onClick={()=>setVal('escala_prioridade', p.id)} style={{
+                  minHeight:56, padding:'8px 10px', borderRadius:10, cursor:'pointer', textAlign:'left',
+                  border:'1.5px solid '+(on?p.color:'var(--border)'), background:on?p.bg:'var(--panel)', color:on?p.color:'var(--text)'
+                }}>
+                  <span style={{display:'block', fontWeight:800, fontSize:14}}>{p.id}</span>
+                  <span style={{display:'block', fontSize:11.5, fontWeight:500, opacity:.85, marginTop:2}}>{p.desc}</span>
+                </button>;
+              })}
+            </div>
+          </Field>
+        </div>
+
+        <div style={secao}>
+          <h3 style={secaoTitulo}>3 · Indicações terapêuticas</h3>
+          <span style={{fontSize:12.5, color:'var(--muted)'}}>Toque para marcar. A ordem em que você marca vira a ordem de prioridade se a criança for cadastrada como paciente.</span>
+          <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
+            {(tiposTerapia||[]).map(t => {
+              const idx = f.indicacoes.indexOf(t);
+              return <button key={t} type="button" style={pillStyle(idx>=0)} aria-pressed={idx>=0} onClick={()=>toggleIndicacao(t)}>
+                {idx>=0 ? `${idx+1} · ${t}` : t}
+              </button>;
+            })}
+          </div>
+          <Field label="Observações da triagem"><textarea value={f.obs} onChange={set('obs')} placeholder="Queixa principal, comportamento observado, encaminhamentos..."/></Field>
+        </div>
+
+        <div style={secao}>
+          <h3 style={secaoTitulo}>4 · Depois de salvar</h3>
+          {MODOS.map(m => {
+            const on = f.modo === m.id;
+            return <button key={m.id} type="button" aria-pressed={on} onClick={()=>setVal('modo', m.id)} style={{
+              width:'100%', textAlign:'left', minHeight:52, padding:'10px 14px', borderRadius:10, cursor:'pointer', color:'var(--text)',
+              border:'1.5px solid '+(on?'var(--accent)':'var(--border)'), background:on?'var(--accent-soft)':'var(--panel)'
+            }}>
+              <span style={{display:'block', fontWeight:700, fontSize:13.5}}>{m.label}</span>
+              <span style={{display:'block', fontSize:12, color:'var(--muted)', marginTop:2}}>{m.desc}</span>
+            </button>;
+          })}
+        </div>
+      </div>
+
+      <div className="profile-actions" style={{flexWrap:'wrap', alignItems:'center'}}>
+        {erro && <div style={{flexBasis:'100%', fontSize:12.5, color:'var(--danger)', fontWeight:600}}>{erro}</div>}
+        <button className="btn btn-secondary" onClick={onClose} disabled={salvando}>Cancelar</button>
+        <span style={{flex:1}}/>
+        <button className="btn btn-primary" onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : rotuloSalvar}</button>
+      </div>
+    </div>
+  </>;
+}
+
+function TriagensTab({ notify, patients, professionals, tiposTerapia, currentUser, onCadastrarPaciente }){
   const [triagens, setTriagens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -1952,6 +2169,27 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
   const [salvandoNovoAg, setSalvandoNovoAg] = useState(false);
   const [removendoAgId, setRemovendoAgId] = useState(null);
   const [salvandoAgDataId, setSalvandoAgDataId] = useState(null);
+  const [novaAberta, setNovaAberta] = useState(false);
+  const [destaqueId, setDestaqueId] = useState(null);
+
+  const onTriagemSalva = (nova, modo) => {
+    setTriagens(prev => [nova, ...prev].sort((a,b) => (b.data_avaliacao||"").localeCompare(a.data_avaliacao||"")));
+    setNovaAberta(false);
+    setDestaqueId(nova.id);
+    setQ(""); setFPrioridade(""); setFIndicacao(""); setFIdadeMin(""); setFIdadeMax(""); setFAcompanhada(""); setFDataAg(""); setFProfissionalAg("");
+    if(modo === "agendar"){
+      setAberta(nova);
+      setAddingAgendamentoFor(nova.id);
+      const primeira = (nova.indicacoes_terapeuticas||"").split(",").map(s=>s.trim()).filter(Boolean)[0];
+      setNovoAgTerapia(primeira && (tiposTerapia||[]).includes(primeira) ? primeira : "");
+      notify("Triagem salva. Agora escolha o profissional e a data do agendamento.");
+    } else if(modo === "paciente" && onCadastrarPaciente){
+      notify("Triagem salva. Complete o cadastro do paciente.");
+      onCadastrarPaciente(nova);
+    } else {
+      notify(`Triagem de ${nova.nome} salva`);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -2331,8 +2569,15 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
   </div>;
 
   return <div className="card">
-    <div className="section-title">Avaliação da triagem</div>
-    <p style={{color:'var(--muted)', fontSize:13, marginBottom:14}}>Consulta às triagens importadas da planilha de avaliação. Somente leitura — {triagens.length} registros carregados.</p>
+    <div style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, flexWrap:'wrap', marginBottom:14}}>
+      <div>
+        <div className="section-title" style={{marginBottom:6}}>Avaliação da triagem</div>
+        <p style={{color:'var(--muted)', fontSize:13, margin:0}}>Triagens importadas da planilha e registradas pelo sistema — {triagens.length} registros carregados.</p>
+      </div>
+      <button className="btn btn-primary" style={{display:'inline-flex', alignItems:'center', gap:8}} onClick={()=>setNovaAberta(true)} disabled={loading}>
+        <IconPlus/> Nova triagem
+      </button>
+    </div>
     <div className="toolbar" style={{marginBottom:16}}>
       <input placeholder="Buscar por nome ou CPF/CNS..." value={q} onChange={e=>setQ(valorCaixaAlta(e))} />
       <select style={{maxWidth:200}} value={fPrioridade} onChange={e=>setFPrioridade(e.target.value)}>
@@ -2379,7 +2624,10 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
           <tbody>
             {filtradas.map(t => (
               <tr key={t.id} style={{cursor:'pointer'}} onClick={()=>setAberta(t)}>
-                <td style={{fontWeight:600}}>{t.nome || "—"}</td>
+                <td style={{fontWeight:600, ...(t.id===destaqueId ? {background:'#eef1ff'} : {})}}>
+                  {t.nome || "—"}
+                  {t.id===destaqueId && <span style={{marginLeft:8, fontSize:10.5, fontWeight:800, background:'var(--accent)', color:'#fff', padding:'2px 7px', borderRadius:8}}>NOVA</span>}
+                </td>
                 <td>{fmt(t.nascimento)}</td>
                 <td>{calcIdade(t.nascimento) !== null ? calcIdade(t.nascimento) : "—"}</td>
                 <td>{t.telefone || "—"}</td>
@@ -2406,6 +2654,16 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia }){
         </div>
       )
     )}
+
+    {novaAberta && <NovaTriagemDrawer
+      triagens={triagens}
+      patients={patients}
+      tiposTerapia={tiposTerapia}
+      currentUser={currentUser}
+      notify={notify}
+      onClose={()=>setNovaAberta(false)}
+      onSaved={onTriagemSalva}
+    />}
 
     {aberta && <>
       <div className="profile-overlay" onClick={()=>setAberta(null)}/>
@@ -4673,6 +4931,8 @@ function App(){
   const [ptsPreselect, setPtsPreselect] = useState(null);
   const goToDarAlta = (patientId, tipos) => { setPtsPreselect({ pacienteId: patientId, tipos: tipos || [] }); setTab("pts"); };
   const [therapyPreselect, setTherapyPreselect] = useState(null);
+  const [triagemParaCadastro, setTriagemParaCadastro] = useState(null);
+  const goToCadastroDaTriagem = (triagem) => { setEditingPatient(null); setTriagemParaCadastro(triagem); setTab("cadastro"); };
   const goToAtendimento = (patient, tipo) => {
     setTherapyPreselect({ pacienteId: patient.id, tipo: tipo || "" });
     setTab("terapias");
@@ -4794,7 +5054,7 @@ function App(){
 
     <div key={tab} className="fade-in">
     {tab==="dashboard" && <DashboardTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} alerts={alerts} onGoTo={goTo}/>}
-    {tab==="cadastro" && <PatientForm patients={pat.items} save={pat.save} notify={notify} editTarget={editingPatient} onDone={()=>{ setEditingPatient(null); setTab("pacientes"); }} onRequestDelete={(p)=>setConfirmDel(p)} tiposTerapia={tiposTerapia.tipos} professionals={pro.items}/>}
+    {tab==="cadastro" && <PatientForm patients={pat.items} save={pat.save} notify={notify} editTarget={editingPatient} onDone={()=>{ setEditingPatient(null); setTab("pacientes"); }} onRequestDelete={(p)=>setConfirmDel(p)} tiposTerapia={tiposTerapia.tipos} professionals={pro.items} triagemInicial={triagemParaCadastro} onConsumeTriagemInicial={()=>setTriagemParaCadastro(null)}/>}
     {tab==="pacientes" && <PatientsList patients={pat.items} loading={pat.loading} filterConfigs={filterCfg.configs} therapies={ther.items} pts={pts.items} professionals={pro.items} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} onDelete={(p)=>setConfirmDel(p)} podeVerRegistros={rolePerms.canAccess(currentUser?.role, REGISTROS_PERM_ID)}/>}
     {tab==="lista-espera" && <WaitingListTab patients={pat.items} loading={pat.loading} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} professionals={pro.items} tiposTerapia={tiposTerapia.tipos} savePatient={pat.save} saveTherapy={ther.save} notify={notify} onColocarAtendimento={goToAtendimento}/>}
     {tab==="quantitativo" && <QuantitativoTab therapies={ther.items} patients={pat.items} professionals={pro.items} onDarAlta={goToDarAlta} onRegistrarSessao={goToAtendimento} savePatient={pat.save} notify={notify}/>}
@@ -4805,7 +5065,7 @@ function App(){
     {tab==="filtros" && <FiltrosTab configs={filterCfg.configs} loading={filterCfg.loading} add={filterCfg.add} remove={filterCfg.remove} move={filterCfg.move} notify={notify} tiposTerapia={tiposTerapia} especialidades={especialidades}/>}
     {tab==="exportar" && <ExportTab patients={pat.items} professionals={pro.items} therapies={ther.items} pts={pts.items} notify={notify}/>}
     {tab==="assistente-ia" && <AssistenteIATab notify={notify}/>}
-    {tab==="avaliacoes" && <TriagensTab notify={notify} patients={pat.items} professionals={pro.items} tiposTerapia={tiposTerapia.tipos}/>}
+    {tab==="avaliacoes" && <TriagensTab notify={notify} patients={pat.items} professionals={pro.items} tiposTerapia={tiposTerapia.tipos} currentUser={currentUser} onCadastrarPaciente={goToCadastroDaTriagem}/>}
     {tab==="usuarios" && isAdmin && <UsersTab usersHook={usersHook} currentUser={currentUser} notify={notify} rolePerms={rolePerms}/>}
     {tab==="minha-conta" && <MyAccountTab currentUser={currentUser} usersHook={usersHook} notify={notify}/>}
     </div>
@@ -4824,11 +5084,3 @@ ReactDOM.createRoot(document.getElementById('app-root')).render(<App/>);
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
