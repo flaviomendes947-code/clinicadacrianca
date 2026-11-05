@@ -2988,6 +2988,13 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia, currentUse
 
 function ExportTab({ patients, professionals, therapies, pts, notify }){
   const [showJson, setShowJson] = useState(false);
+  const [pdfModal, setPdfModal] = useState(false);
+  const [tempoEspera, setTempoEspera] = useState(() => { try{ return localStorage.getItem("relatorio_tempo_espera") || ""; }catch(e){ return ""; } });
+  const confirmarPDF = () => {
+    try{ localStorage.setItem("relatorio_tempo_espera", tempoEspera); }catch(e){}
+    generatePDFReport(tempoEspera);
+    setPdfModal(false);
+  };
 
   // ── Filtros para as relações nominais (PDF) ──────────────────────────────────
   const [fRelProf, setFRelProf] = useState("");
@@ -3128,7 +3135,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     notify("Excel completo baixado");
   };
 
-  const generatePDFReport = () => {
+  const generatePDFReport = (tempoEspera) => {
     if(typeof window.jspdf === "undefined"){ notify("Biblioteca de PDF não carregou. Verifique sua conexão."); return; }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -3153,14 +3160,25 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
         ["Pacientes ativos (em ao menos 1 terapia)", String(ativos)],
         ["Pacientes sem nenhuma terapia (espera)", String(espera)],
         ["Total de profissionais", String(professionals.length)],
-        ["Total de sessões registradas", String(therapies.length)],
-        ["Sessões realizadas", String(therapies.filter(t=>t.status==="Realizada").length)],
       ],
       theme: "grid",
       headStyles: { fillColor: [59,111,240] },
       styles: { fontSize: 9 },
       margin: { left: 14, right: 14 },
     });
+
+    // Tempo de espera informado pelo usuário antes de exportar
+    if(tempoEspera && tempoEspera.trim()){
+      doc.autoTable({
+        startY: doc.lastAutoTable.finalY + 6,
+        head: [["Tempo de espera"]],
+        body: [[tempoEspera.trim()]],
+        theme: "grid",
+        headStyles: { fillColor: [217,119,6] },
+        styles: { fontSize: 10, cellPadding: 3 },
+        margin: { left: 14, right: 14 },
+      });
+    }
 
     y = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(12); doc.setFont(undefined, "bold");
@@ -3189,30 +3207,66 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
       margin: { left: 14, right: 14 },
     });
 
-    // Lista nominal de espera (ordenada por tempo de espera)
-    const emEspera = patients
-      .filter(p => (p.terapiasNecessarias||[]).some(t=>t.status==="Lista de espera"))
-      .sort((a,b) => { if(!a.dataEntrada) return 1; if(!b.dataEntrada) return -1; return a.dataEntrada.localeCompare(b.dataEntrada); });
-    if(emEspera.length){
-      doc.addPage(); y = 18;
-      doc.setFontSize(14); doc.setFont(undefined, "bold");
-      doc.text("Relação nominal — Lista de espera", 14, y);
+    // A relação nominal da lista de espera agora é um relatório separado (generateRelacaoListaEspera)
+
+    doc.save(`relatorio-geral-${new Date().toISOString().slice(0,10)}.pdf`);
+    notify("Relatório em PDF baixado");
+  };
+
+  // ── Relatório: Profissionais (nome, especialidade, conselho + total por especialidade) ──
+  const generateRelatorioProfissionais = () => {
+    if(typeof window.jspdf === "undefined"){ notify("Biblioteca de PDF não carregou. Verifique sua conexão."); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    let y = 18;
+
+    doc.setFontSize(16); doc.setFont(undefined, "bold");
+    doc.text("Relatório de Profissionais", 14, y);
+    doc.setFontSize(10); doc.setFont(undefined, "normal");
+    y += 7;
+    doc.text(`Gerado em ${hoje} · ${professionals.length} profissional${professionals.length!==1?"is":""}`, 14, y);
+    y += 8;
+
+    const lista = [...professionals].sort((a,b) => (a.nome||"").localeCompare(b.nome||""));
+    if(lista.length === 0){
+      doc.setFontSize(11);
+      doc.text("Nenhum profissional cadastrado.", 14, y);
+    } else {
       doc.autoTable({
-        startY: y + 6,
-        head: [["#","Nome","Entrada","Terapias pendentes"]],
-        body: emEspera.map((p,i) => [
-          String(i+1), p.nome, p.dataEntrada || "—",
-          (p.terapiasNecessarias||[]).filter(t=>t.status==="Lista de espera").map(t=>t.tipo).join(", ")
-        ]),
+        startY: y,
+        head: [["#","Nome do profissional","Especialidade","Nº do conselho"]],
+        body: lista.map((p,i) => [String(i+1), p.nome || "—", p.especialidade || "—", p.registro || "—"]),
         theme: "grid",
-        headStyles: { fillColor: [99,102,241] },
-        styles: { fontSize: 8.5 },
+        headStyles: { fillColor: [59,111,240] },
+        styles: { fontSize: 9 },
+        columnStyles: { 0: { cellWidth: 10 } },
+        margin: { left: 14, right: 14 },
+      });
+
+      const porEsp = {};
+      lista.forEach(p => { const e = p.especialidade || "Sem especialidade"; porEsp[e] = (porEsp[e]||0) + 1; });
+      const linhas = Object.entries(porEsp).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0]));
+
+      y = doc.lastAutoTable.finalY + 12;
+      if(y > 250){ doc.addPage(); y = 18; }
+      doc.setFontSize(12); doc.setFont(undefined, "bold");
+      doc.text("Quantitativo de profissionais por especialidade", 14, y);
+      doc.autoTable({
+        startY: y + 4,
+        head: [["Especialidade","Quantidade"]],
+        body: linhas.map(([e,n]) => [e, String(n)]),
+        foot: [["Total", String(lista.length)]],
+        theme: "striped",
+        headStyles: { fillColor: [22,163,74] },
+        footStyles: { fillColor: [241,245,249], textColor: [23,29,43], fontStyle: "bold" },
+        styles: { fontSize: 9 },
         margin: { left: 14, right: 14 },
       });
     }
 
-    doc.save(`relatorio-geral-${new Date().toISOString().slice(0,10)}.pdf`);
-    notify("Relatório em PDF baixado");
+    doc.save(`relatorio-profissionais-${new Date().toISOString().slice(0,10)}.pdf`);
+    notify("Relatório de profissionais baixado em PDF");
   };
 
   const calcIdadeExport = (nasc) => {
@@ -3346,11 +3400,11 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     <div className="section-title">Relatórios completos</div>
     <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Gere um relatório completo pronto para apresentação ou prestação de contas.</p>
     <div className="grid grid-2" style={{marginBottom:8}}>
-      <button className="btn btn-primary" onClick={generatePDFReport}>📄 Gerar relatório em PDF</button>
+      <button className="btn btn-primary" onClick={()=>setPdfModal(true)}>📄 Gerar relatório em PDF</button>
       <button className="btn btn-primary" onClick={exportExcelCompleto}>📊 Baixar Excel completo (.xlsx)</button>
     </div>
     <p style={{color:'var(--muted)', fontSize:12, marginBottom:20}}>
-      O PDF traz um resumo executivo (indicadores, terapias ativas/em espera e relação nominal da lista de espera). O Excel traz todas as tabelas (Resumo, Pacientes, Profissionais, Terapias e PTS) em abas separadas, prontas para editar.
+      O PDF traz um resumo executivo (indicadores, tempo de espera e terapias ativas/em espera). A relação nominal da lista de espera fica no botão próprio, mais abaixo. O Excel traz todas as tabelas (Resumo, Pacientes, Profissionais, Terapias e PTS) em abas separadas, prontas para editar.
     </p>
 
     <div className="section-title">Relações nominais (PDF)</div>
@@ -3383,6 +3437,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     <div className="grid grid-2" style={{marginBottom:20}}>
       <button className="btn btn-secondary" onClick={generateRelacaoPorProfissional}>📋 Relação nominal por profissional (PDF)</button>
       <button className="btn btn-secondary" onClick={generateRelacaoListaEspera}>📋 Relação nominal — lista de espera (PDF)</button>
+      <button className="btn btn-secondary" onClick={generateRelatorioProfissionais}>👥 Relatório de profissionais (PDF)</button>
     </div>
 
     <div className="section-title">Exportar dados individuais (CSV)</div>
@@ -3398,6 +3453,22 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Visualize todo o banco de dados em formato JSON, direto na tela.</p>
     <button className="btn btn-secondary" onClick={()=>setShowJson(true)}>Abrir dados em JSON</button>
 
+    {pdfModal && <div className="modal-overlay" onClick={()=>setPdfModal(false)}>
+      <div className="modal" style={{maxWidth:520}} onClick={e=>e.stopPropagation()}>
+        <h3>Relatório em PDF</h3>
+        <p style={{fontSize:13}}>Informe o tempo de espera na clínica. O texto sairá no relatório, logo abaixo dos indicadores.</p>
+        <Field label="Tempo de espera">
+          <textarea autoFocus value={tempoEspera} onChange={e=>setTempoEspera(e.target.value)}
+            placeholder="Ex.: Fonoaudiologia: cerca de 6 meses · ABA: cerca de 4 meses · Terapia Ocupacional: cerca de 3 meses"
+            style={{minHeight:110}}/>
+        </Field>
+        <span style={{display:'block', fontSize:12, color:'var(--muted)', marginTop:6}}>Se deixar em branco, o relatório sai sem esse campo. O texto fica guardado neste navegador para a próxima exportação.</span>
+        <div className="actions-row">
+          <button className="btn btn-secondary" onClick={()=>setPdfModal(false)}>Cancelar</button>
+          <button className="btn btn-primary" onClick={confirmarPDF}>📄 Exportar PDF</button>
+        </div>
+      </div>
+    </div>}
     {showJson && <JsonViewerModal patients={patients} professionals={professionals} therapies={therapies} pts={pts} onClose={()=>setShowJson(false)} notify={notify} />}
   </div>;
 }
@@ -5271,7 +5342,7 @@ function App(){
         </div>
         <div className="sidebar-brand-text">
           <h1>Painel de pacientes</h1>
-          <p>Equipe compartilhada · v17</p>
+          <p>Equipe compartilhada · v19</p>
         </div>
         <button className="sidebar-collapse-btn" onClick={()=>setSidebarCollapsed(v=>!v)} title={sidebarCollapsed?"Expandir menu":"Recolher menu"}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{transform:sidebarCollapsed?"rotate(180deg)":"none"}}><polyline points="15 18 9 12 15 6"/></svg>
