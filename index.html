@@ -1447,7 +1447,218 @@ function PatientsList({ patients, loading, onEdit, onDelete, filterConfigs, ther
   </>;
 }
 
-function ProfessionalsTab({ professionals, loading, save, remove, notify, filterConfigs, especialidades }){
+// ── Unificar profissionais duplicados ────────────────────────────────────────
+// Move todos os vínculos (sessões, agendamentos da triagem e profissional das terapias
+// no cadastro do paciente) para o cadastro mantido e depois exclui os duplicados.
+const normNomeProf = (s) => (s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().replace(/[^A-Z ]/g," ").replace(/\s+/g," ").trim();
+const normRegistroProf = (s) => (s||"").replace(/\D/g,"");
+
+function UnificarProfissionaisDrawer({ professionals, patients, therapies, notify, onClose, onDone }){
+  const [agendamentos, setAgendamentos] = useState([]);
+  const [escolha, setEscolha] = useState({});      // chave do grupo -> id mantido
+  const [ignorados, setIgnorados] = useState({});  // chave do grupo -> true
+  const [manual, setManual] = useState({ manter:"", remover:"" });
+  const [confirmar, setConfirmar] = useState(null); // { manter, remover:[...] }
+  const [executando, setExecutando] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try{
+        const { data, error } = await sb.from("triagem_agendamentos").select("id, profissional_id");
+        if(!error) setAgendamentos(data || []);
+      }catch(e){ console.error(e); }
+    })();
+  }, []);
+
+  const uso = useMemo(() => {
+    const u = {};
+    const get = (id) => (u[id] = u[id] || { sessoes:0, pacientes:0, agendamentos:0 });
+    (therapies||[]).forEach(t => { if(t.profissionalId) get(t.profissionalId).sessoes++; });
+    (patients||[]).forEach(p => {
+      const ids = new Set((p.terapiasNecessarias||[]).map(t => t.profissionalId).filter(Boolean));
+      ids.forEach(id => get(id).pacientes++);
+    });
+    agendamentos.forEach(a => { if(a.profissional_id) get(a.profissional_id).agendamentos++; });
+    return u;
+  }, [therapies, patients, agendamentos]);
+  const usoDe = (id) => uso[id] || { sessoes:0, pacientes:0, agendamentos:0 };
+  const pesoUso = (id) => { const x = usoDe(id); return x.sessoes + x.pacientes + x.agendamentos; };
+
+  // Grupos: mesmo nome (duplicado certo) e mesmo registro com nomes diferentes (conferir)
+  const grupos = useMemo(() => {
+    const porNome = {}, porReg = {};
+    professionals.forEach(p => {
+      const n = normNomeProf(p.nome);
+      if(n) (porNome[n] = porNome[n] || []).push(p);
+      const r = normRegistroProf(p.registro);
+      if(r.length >= 4) (porReg[r] = porReg[r] || []).push(p);
+    });
+    const ordenar = (lista) => [...lista].sort((a,b) => pesoUso(b.id) - pesoUso(a.id) || (a.createdAt||0) - (b.createdAt||0));
+    const out = [];
+    Object.entries(porNome).forEach(([n, lista]) => { if(lista.length > 1) out.push({ chave:"nome:"+n, tipo:"nome", itens:ordenar(lista) }); });
+    Object.entries(porReg).forEach(([r, lista]) => {
+      const nomes = new Set(lista.map(p => normNomeProf(p.nome)));
+      if(lista.length > 1 && nomes.size > 1) out.push({ chave:"reg:"+r, tipo:"registro", registro:r, itens:ordenar(lista) });
+    });
+    return out;
+  }, [professionals, uso]);
+
+  const gruposNome = grupos.filter(g => g.tipo === "nome" && !ignorados[g.chave]);
+  const gruposReg = grupos.filter(g => g.tipo === "registro" && !ignorados[g.chave]);
+
+  const profPorId = (id) => professionals.find(p => p.id === id);
+
+  const executar = async ({ manter, remover }) => {
+    const keep = profPorId(manter);
+    const dups = remover.map(profPorId).filter(Boolean);
+    if(!keep || dups.length === 0) return;
+    const dupIds = dups.map(d => d.id);
+    setExecutando(true);
+    try{
+      // 1) Sessões de terapia
+      let r = await sb.from("sessoes_terapia").update({ profissional_id: keep.id }).in("profissional_id", dupIds);
+      if(r.error) throw r.error;
+      // 2) Agendamentos da triagem
+      r = await sb.from("triagem_agendamentos").update({ profissional_id: keep.id }).in("profissional_id", dupIds);
+      if(r.error) throw r.error;
+      // 3) Profissional vinculado nas terapias de cada paciente
+      const afetados = (patients||[]).filter(p => (p.terapiasNecessarias||[]).some(t => dupIds.includes(t.profissionalId)));
+      for(const p of afetados){
+        const lista = (p.terapiasNecessarias||[]).map(t => dupIds.includes(t.profissionalId) ? { ...t, profissionalId: keep.id } : t);
+        r = await sb.from("pacientes").update({ terapias_necessarias: lista }).eq("id", p.id);
+        if(r.error) throw r.error;
+      }
+      // 4) Completa no cadastro mantido os dados que só existiam no duplicado
+      const completar = {};
+      ["registro","telefone","email","especialidade"].forEach(campo => {
+        if(!keep[campo]){ const d = dups.find(x => x[campo]); if(d) completar[campo] = d[campo]; }
+      });
+      if(keep.status !== "Ativo" && dups.some(d => d.status === "Ativo")) completar.status = "Ativo";
+      if(Object.keys(completar).length){
+        r = await sb.from("profissionais").update(completar).eq("id", keep.id);
+        if(r.error) throw r.error;
+      }
+      // 5) Exclui os duplicados (só depois de mover tudo)
+      r = await sb.from("profissionais").delete().in("id", dupIds);
+      if(r.error) throw r.error;
+
+      setAgendamentos(prev => prev.map(a => dupIds.includes(a.profissional_id) ? { ...a, profissional_id: keep.id } : a));
+      notify(`Unificado: ${dups.length} cadastro${dups.length>1?"s":""} juntado${dups.length>1?"s":""} em ${keep.nome}`);
+      setConfirmar(null);
+      setManual({ manter:"", remover:"" });
+      await onDone();
+    }catch(e){
+      window.showFatal("Não foi possível unificar: " + (e.message||e) + ". Nenhum cadastro foi excluído; os vínculos já movidos continuam apontando para o profissional mantido.");
+    }
+    setExecutando(false);
+  };
+
+  const prepararGrupo = (g) => {
+    const manter = escolha[g.chave] || g.itens[0].id;
+    setConfirmar({ manter, remover: g.itens.map(p => p.id).filter(id => id !== manter) });
+  };
+
+  const LinhaProf = ({ p, grupo }) => {
+    const x = usoDe(p.id);
+    const sel = (escolha[grupo.chave] || grupo.itens[0].id) === p.id;
+    return <label style={{display:'flex', gap:12, alignItems:'flex-start', padding:'10px 12px', borderRadius:10, cursor:'pointer',
+      border:'1.5px solid '+(sel?'var(--accent)':'var(--border)'), background: sel?'var(--accent-soft)':'var(--panel)'}}>
+      <input type="radio" name={grupo.chave} checked={sel} onChange={()=>setEscolha(s => ({...s, [grupo.chave]: p.id}))} style={{marginTop:3, width:'auto'}}/>
+      <div style={{flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:3}}>
+        <span style={{fontWeight:700, fontSize:13.5}}>{p.nome} {sel && <span style={{fontSize:10.5, fontWeight:800, background:'var(--accent)', color:'#fff', padding:'2px 7px', borderRadius:8, marginLeft:4}}>MANTER</span>}</span>
+        <span style={{fontSize:12.5, color:'var(--muted)'}}>{p.especialidade || "—"} · Registro: {p.registro || "—"} · {p.telefone || p.email || "sem contato"} · {p.status}</span>
+        <span style={{fontSize:12, color:'var(--text)'}}>{x.sessoes} sessões · {x.pacientes} pacientes vinculados · {x.agendamentos} agendamentos de triagem</span>
+      </div>
+    </label>;
+  };
+
+  const Grupo = ({ g }) => <div style={{border:'1px solid var(--border)', borderRadius:12, padding:14, display:'flex', flexDirection:'column', gap:8, background:'var(--panel)'}}>
+    {g.tipo === "registro" && <span style={{fontSize:12.5, color:'#92400e', background:'var(--warn-soft)', border:'1px solid #fde68a', borderRadius:8, padding:'6px 10px'}}>
+      Mesmo registro ({g.registro}) com nomes diferentes. Pode ser a mesma pessoa ou um registro digitado errado — confira antes de unificar.
+    </span>}
+    <span style={{fontSize:12, color:'var(--muted)'}}>Escolha qual cadastro manter. Os demais serão juntados nele e excluídos.</span>
+    {g.itens.map(p => <LinhaProf key={p.id} p={p} grupo={g}/>)}
+    <div style={{display:'flex', gap:8, justifyContent:'flex-end', flexWrap:'wrap'}}>
+      <button className="btn btn-secondary" style={{padding:'8px 14px'}} onClick={()=>setIgnorados(s => ({...s, [g.chave]: true}))}>Não são duplicados</button>
+      <button className="btn btn-primary" style={{padding:'8px 14px'}} onClick={()=>prepararGrupo(g)} disabled={executando}>Unificar</button>
+    </div>
+  </div>;
+
+  const ordenados = [...professionals].sort((a,b) => (a.nome||"").localeCompare(b.nome||""));
+  const opcaoProf = (p) => `${p.nome} — ${p.especialidade||"sem especialidade"}${p.registro ? " · "+p.registro : ""}`;
+  const secaoTitulo = {margin:0, fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:'.07em', color:'var(--muted)'};
+
+  return <>
+    <div className="profile-overlay" onClick={executando ? undefined : onClose}/>
+    <div className="profile-drawer" style={{width:'min(680px,100%)'}} role="dialog" aria-label="Unificar profissionais duplicados">
+      <div className="profile-topbar">
+        <div style={{flex:1}}>
+          <h2>Unificar profissionais duplicados</h2>
+          <p>Sessões, agendamentos e vínculos com pacientes passam para o cadastro mantido.</p>
+        </div>
+        <button className="icon-btn" onClick={onClose} aria-label="Fechar" disabled={executando}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div className="profile-body">
+        <h3 style={secaoTitulo}>Mesmo nome ({gruposNome.length})</h3>
+        {gruposNome.length === 0 ? <div style={{fontSize:13, color:'var(--muted)'}}>Nenhum profissional com nome repetido.</div>
+          : gruposNome.map(g => <Grupo key={g.chave} g={g}/>)}
+
+        <h3 style={{...secaoTitulo, marginTop:10}}>Mesmo registro, nomes diferentes ({gruposReg.length})</h3>
+        {gruposReg.length === 0 ? <div style={{fontSize:13, color:'var(--muted)'}}>Nenhum registro repetido entre nomes diferentes.</div>
+          : gruposReg.map(g => <Grupo key={g.chave} g={g}/>)}
+
+        <h3 style={{...secaoTitulo, marginTop:10}}>Unificar manualmente</h3>
+        <div style={{border:'1px solid var(--border)', borderRadius:12, padding:14, display:'flex', flexDirection:'column', gap:10, background:'var(--panel)'}}>
+          <span style={{fontSize:12.5, color:'var(--muted)'}}>Para nomes escritos de formas diferentes (abreviado, com erro de digitação etc.).</span>
+          <Field label="Cadastro que fica">
+            <select value={manual.manter} onChange={e=>setManual(m => ({...m, manter:e.target.value}))}>
+              <option value="">Selecione</option>
+              {ordenados.map(p => <option key={p.id} value={p.id}>{opcaoProf(p)}</option>)}
+            </select>
+          </Field>
+          <Field label="Cadastro duplicado (será excluído)">
+            <select value={manual.remover} onChange={e=>setManual(m => ({...m, remover:e.target.value}))}>
+              <option value="">Selecione</option>
+              {ordenados.filter(p => p.id !== manual.manter).map(p => <option key={p.id} value={p.id}>{opcaoProf(p)}</option>)}
+            </select>
+          </Field>
+          <div style={{display:'flex', justifyContent:'flex-end'}}>
+            <button className="btn btn-primary" style={{padding:'8px 14px'}} disabled={!manual.manter || !manual.remover || executando}
+              onClick={()=>setConfirmar({ manter: manual.manter, remover:[manual.remover] })}>Unificar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {confirmar && (() => {
+      const keep = profPorId(confirmar.manter);
+      const dups = confirmar.remover.map(profPorId).filter(Boolean);
+      const tot = dups.reduce((a, d) => { const x = usoDe(d.id); return { s:a.s+x.sessoes, p:a.p+x.pacientes, g:a.g+x.agendamentos }; }, { s:0, p:0, g:0 });
+      return <div className="modal-overlay" style={{zIndex:1000}} onClick={executando ? undefined : ()=>setConfirmar(null)}>
+        <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
+          <h3>Confirmar unificação</h3>
+          <p style={{lineHeight:1.55}}>Manter <strong>{keep && keep.nome}</strong>.<br/>
+            Excluir {dups.map(d => <strong key={d.id}>{d.nome}{d.registro ? ` (${d.registro})` : ""}</strong>).reduce((acc, el, i) => i ? [...acc, ", ", el] : [el], [])}.</p>
+          <p style={{lineHeight:1.55, fontSize:13}}>Serão transferidos {tot.s} sessões, {tot.p} vínculos com pacientes e {tot.g} agendamentos de triagem. Dados que faltam no cadastro mantido (registro, telefone, e-mail) serão copiados do duplicado. Essa ação não pode ser desfeita.</p>
+          <div className="actions-row">
+            <button className="btn btn-secondary" onClick={()=>setConfirmar(null)} disabled={executando}>Cancelar</button>
+            <button className="btn btn-primary" onClick={()=>executar(confirmar)} disabled={executando}>{executando ? "Unificando..." : "Unificar"}</button>
+          </div>
+        </div>
+      </div>;
+    })()}
+  </>;
+}
+
+function ProfessionalsTab({ professionals, loading, save, remove, notify, filterConfigs, especialidades, patients, therapies, isAdmin, onReloadAll }){
+  const [unificarAberto, setUnificarAberto] = useState(false);
+  const qtdDuplicados = useMemo(() => {
+    const vistos = {}; let n = 0;
+    professionals.forEach(p => { const k = normNomeProf(p.nome); if(!k) return; if(vistos[k]) n++; else vistos[k] = true; });
+    return n;
+  }, [professionals]);
   const [form, setForm] = useState(blankProfessional());
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
@@ -1507,6 +1718,9 @@ function ProfessionalsTab({ professionals, loading, save, remove, notify, filter
         <DynamicFilters mine={dynF.mine} vals={dynF.vals} setVal={dynF.setVal} data={professionals} clear={dynF.clear} hasAny={dynF.hasAny} />
         {(hasFilters || dynF.hasAny) && <button className="btn btn-secondary" style={{padding:'10px 14px'}} onClick={clearAll}>Limpar filtros</button>}
         <span className="count-pill">{filtered.length} profissional{filtered.length!==1?"is":""}</span>
+        {isAdmin && <button className="btn btn-secondary" style={{padding:'10px 14px', ...(qtdDuplicados ? {borderColor:'#fde68a', background:'var(--warn-soft)', color:'#92400e'} : {})}} onClick={()=>setUnificarAberto(true)}>
+          Unificar duplicados{qtdDuplicados ? ` (${qtdDuplicados})` : ""}
+        </button>}
       </div>
       {loading ? <div style={{display:'flex', flexDirection:'column', gap:10, padding:'6px 0'}}>
       {[0,1,2,3].map(i => <div key={i} className="skeleton" style={{height:44, borderRadius:10, opacity:1-(i*0.15)}}/>)}
@@ -1533,6 +1747,9 @@ function ProfessionalsTab({ professionals, loading, save, remove, notify, filter
       text={`Tem certeza que deseja excluir "${confirmDel.nome}"? Essa ação não pode ser desfeita.`}
       onCancel={()=>setConfirmDel(null)}
       onConfirm={async ()=>{ await remove(confirmDel.id); notify("Profissional excluído"); setConfirmDel(null); }} />}
+    {unificarAberto && <UnificarProfissionaisDrawer
+      professionals={professionals} patients={patients} therapies={therapies} notify={notify}
+      onClose={()=>setUnificarAberto(false)} onDone={onReloadAll} />}
   </div>;
 }
 
@@ -4032,6 +4249,7 @@ async function hashPwd(pwd){
 function useUsers(){
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -4039,10 +4257,12 @@ function useUsers(){
       const { data, error } = await sb.from('usuarios').select('*').order('created_at', { ascending:true });
       if(error) throw error;
       setUsers((data||[]).map(r => ({ id:r.id, username:r.username, displayName:r.display_name, role:r.role, pwdHash:r.pwd_hash, createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now() })));
+      setLoadError(null);
     }catch(e){
       console.error('Erro ao carregar usuários', e);
       window.showFatal('Não foi possível carregar os usuários: ' + (e.message||e));
-      setUsers([]);
+      // Falha de conexão NÃO significa "nenhum usuário": guardamos o erro para não abrir a configuração inicial
+      setLoadError(e && e.message ? e.message : String(e));
     }
     setLoading(false);
   }, []);
@@ -4094,7 +4314,7 @@ function useUsers(){
     }
   }, []);
 
-  return { users, loading, addUser, updateUser, resetPwd, removeUser, verify, reload: load };
+  return { users, loading, loadError, addUser, updateUser, resetPwd, removeUser, verify, reload: load };
 }
 
 // ── EyeToggle helper ──────────────────────────────────────────────────────────
@@ -4958,9 +5178,10 @@ function App(){
 
   useEffect(()=>{
     if(usersHook.loading) return;
-    if(authState !== "loading") return;
+    if(authState !== "loading" && authState !== "offline") return;
+    if(usersHook.loadError){ setAuthState("offline"); return; }
     setAuthState(usersHook.users.length === 0 ? "setup" : "login");
-  }, [usersHook.loading, usersHook.users]);
+  }, [usersHook.loading, usersHook.users, usersHook.loadError]);
 
   const handleLogin = (user) => { setCurrentUser(user); setAuthState("ok"); };
   const handleLogout = () => { setCurrentUser(null); setAuthState("login"); setTab("dashboard"); };
@@ -5008,6 +5229,14 @@ function App(){
       <div style={{color:"#fff", fontSize:16, fontWeight:600}}>Carregando...</div>
     </div>
   );
+  if(authState === "offline") return <div style={{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:16, background:'linear-gradient(135deg,#1e3a8a,#4658f0)', fontFamily:'Inter, system-ui, sans-serif'}}>
+    <div style={{background:'#fff', borderRadius:16, padding:'32px 28px', maxWidth:440, width:'100%', textAlign:'center', boxShadow:'0 20px 50px rgba(0,0,0,.25)'}}>
+      <h1 style={{fontSize:20, margin:'0 0 8px', color:'#171d2b'}}>Sem conexão com o banco de dados</h1>
+      <p style={{fontSize:14, color:'#4a536b', lineHeight:1.55, margin:'0 0 6px'}}>O sistema não conseguiu se comunicar com o Supabase, por isso não é possível entrar agora. Seus usuários e dados continuam salvos.</p>
+      <p style={{fontSize:12.5, color:'#66708a', margin:'0 0 20px'}}>Detalhe técnico: {usersHook.loadError}</p>
+      <button className="btn btn-primary" style={{minHeight:44, padding:'0 22px'}} disabled={usersHook.loading} onClick={()=>usersHook.reload()}>{usersHook.loading ? "Tentando..." : "Tentar novamente"}</button>
+    </div>
+  </div>;
   if(authState === "setup") return <SetupAdminScreen onDone={handleAdminCreated}/>;
   if(authState === "login") return <LoginScreen onLogin={handleLogin} usersHook={usersHook}/>;
 
@@ -5101,7 +5330,7 @@ function App(){
     {tab==="lista-espera" && <WaitingListTab patients={pat.items} loading={pat.loading} onEdit={(p)=>{ setEditingPatient(p); setTab("cadastro"); }} professionals={pro.items} tiposTerapia={tiposTerapia.tipos} savePatient={pat.save} saveTherapy={ther.save} notify={notify} onColocarAtendimento={goToAtendimento}/>}
     {tab==="quantitativo" && <QuantitativoTab therapies={ther.items} patients={pat.items} professionals={pro.items} onDarAlta={goToDarAlta} onRegistrarSessao={goToAtendimento} savePatient={pat.save} notify={notify}/>}
     {tab==="por-profissional" && <ProfessionalCaseloadTab therapies={ther.items} patients={pat.items} professionals={pro.items}/>}
-    {tab==="profissionais" && <ProfessionalsTab professionals={pro.items} loading={pro.loading} save={pro.save} remove={pro.remove} notify={notify} filterConfigs={filterCfg.configs} especialidades={especialidades}/>}
+    {tab==="profissionais" && <ProfessionalsTab professionals={pro.items} loading={pro.loading} save={pro.save} remove={pro.remove} notify={notify} filterConfigs={filterCfg.configs} especialidades={especialidades} patients={pat.items} therapies={ther.items} isAdmin={isAdmin} onReloadAll={async ()=>{ await Promise.all([pro.reload(), pat.reload(), ther.reload()]); }}/>}
     {tab==="terapias" && <TherapiesTab therapies={ther.items} patients={pat.items} professionals={pro.items} loading={ther.loading} save={ther.save} remove={ther.remove} notify={notify} filterConfigs={filterCfg.configs} tiposTerapia={tiposTerapia.tipos} preselect={therapyPreselect} onConsumePreselect={()=>setTherapyPreselect(null)} savePatient={pat.save}/>}
     {tab==="pts" && <PTSTab pts={pts.items} patients={pat.items} loading={pts.loading} save={pts.save} remove={pts.remove} notify={notify} preselectPatientId={ptsPreselect ? ptsPreselect.pacienteId : null} preselectTipos={ptsPreselect ? ptsPreselect.tipos : []} onConsumePreselect={()=>setPtsPreselect(null)} savePatient={pat.save}/>}
     {tab==="filtros" && <FiltrosTab configs={filterCfg.configs} loading={filterCfg.loading} add={filterCfg.add} remove={filterCfg.remove} move={filterCfg.move} notify={notify} tiposTerapia={tiposTerapia} especialidades={especialidades}/>}
