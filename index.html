@@ -659,6 +659,13 @@ function useRolePermissions(){
   return { rows, loading, map, configuredRoles, canAccess, setPermission, setAllForRole };
 }
 
+// ── Critério único de lista de espera (usado na aba, no Dashboard, no PDF e no Excel) ──
+// Em espera: status geral "Lista de espera" ou alguma terapia com status "Lista de espera".
+// Só em espera: está em espera e não tem nenhuma terapia ativa.
+const estaEmEspera = (p) => p.status === "Lista de espera" || (p.terapiasNecessarias||[]).some(t => t.status === "Lista de espera");
+const temTerapiaAtivaP = (p) => (p.terapiasNecessarias||[]).some(t => t.status === "Ativo");
+const soEmEspera = (p) => estaEmEspera(p) && !temTerapiaAtivaP(p);
+
 const blankPatient = () => ({
   id: null, nome:"", cpf:"", nascimento:"", sexo:"", mae:"",
   cid:"", nivelTea:"", comorbidades:"",
@@ -3076,23 +3083,23 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
 
   const buildResumoRows = () => {
     const ativos = patients.filter(p=>(p.terapiasNecessarias||[]).some(t=>t.status==="Ativo")).length;
-    const espera = patients.filter(p=>(p.terapiasNecessarias||[]).length===0).length;
+    const espera = patients.filter(soEmEspera).length;
     const pausados = patients.filter(p=>p.status==="Em pausa").length;
     const inativos = patients.filter(p=>p.status==="Inativo").length;
     const rows = [
-      {indicador:"Total de pacientes", valor: patients.length},
-      {indicador:"Pacientes ativos (em ao menos 1 terapia)", valor: ativos},
-      {indicador:"Pacientes sem nenhuma terapia (espera)", valor: espera},
-      {indicador:"Pacientes em pausa", valor: pausados},
-      {indicador:"Pacientes inativos", valor: inativos},
+      {indicador:"Total de crianças/adolescentes", valor: patients.length},
+      {indicador:"Crianças/adolescentes ativos (em ao menos 1 terapia)", valor: ativos},
+      {indicador:"Crianças/adolescentes só em lista de espera (nenhuma terapia ativa)", valor: espera},
+      {indicador:"Crianças/adolescentes em pausa", valor: pausados},
+      {indicador:"Crianças/adolescentes inativos", valor: inativos},
       {indicador:"Total de profissionais", valor: professionals.length},
       {indicador:"Total de sessões registradas", valor: therapies.length},
       {indicador:"Sessões realizadas", valor: therapies.filter(t=>t.status==="Realizada").length},
       {indicador:"", valor:""},
-      {indicador:"— Crianças ATIVAS por terapia —", valor:""},
+      {indicador:"— Crianças/adolescentes ATIVOS por terapia —", valor:""},
       ...groupByTherapyStatus("Ativo").map(([tipo,n])=>({indicador:tipo, valor:n})),
       {indicador:"", valor:""},
-      {indicador:"— Crianças EM ESPERA por terapia —", valor:""},
+      {indicador:"— Crianças/adolescentes EM ESPERA por terapia —", valor:""},
       ...groupByTherapyStatus("Lista de espera").map(([tipo,n])=>({indicador:tipo, valor:n})),
     ];
     return rows;
@@ -3114,7 +3121,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
       "Terapias necessárias": (p.terapiasNecessarias||[]).map(t=>`${t.tipo} (${t.status}${t.posTriagem?" · pós triagem":""})`).join("; "),
       Observações:p.obs
     }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pacientesRows), "Pacientes");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pacientesRows), "Crianças e adolescentes");
 
     const profRows = professionals.map(p => ({ Nome:p.nome, Especialidade:p.especialidade, Registro:p.registro, Telefone:p.telefone, "E-mail":p.email, Status:p.status }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(profRows), "Profissionais");
@@ -3143,22 +3150,22 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     let y = 18;
 
     doc.setFontSize(16); doc.setFont(undefined, "bold");
-    doc.text("Relatório Geral — Crianças atendidas", 14, y);
+    doc.text("Relatório Geral — Crianças e adolescentes atendidos", 14, y);
     doc.setFontSize(10); doc.setFont(undefined, "normal");
     y += 7;
     doc.text(`Gerado em ${hoje}`, 14, y);
 
     const ativos = patients.filter(p=>(p.terapiasNecessarias||[]).some(t=>t.status==="Ativo")).length;
-    const espera = patients.filter(p=>(p.terapiasNecessarias||[]).length===0).length;
+    const espera = patients.filter(soEmEspera).length;
 
     y += 8;
     doc.autoTable({
       startY: y,
       head: [["Indicador","Valor"]],
       body: [
-        ["Total de crianças", String(patients.length)],
-        ["Crianças ativas (em ao menos 1 terapia)", String(ativos)],
-        ["Crianças sem nenhuma terapia (espera)", String(espera)],
+        ["Total de crianças/adolescentes", String(patients.length)],
+        ["Crianças/adolescentes ativos (em ao menos 1 terapia)", String(ativos)],
+        ["Crianças/adolescentes só em lista de espera (nenhuma terapia ativa)", String(espera)],
         ["Total de profissionais", String(professionals.length)],
       ],
       theme: "grid",
@@ -3182,10 +3189,10 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
 
     y = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(12); doc.setFont(undefined, "bold");
-    doc.text("Crianças ativas por terapia", 14, y);
+    doc.text("Crianças/adolescentes ativos por terapia", 14, y);
     doc.autoTable({
       startY: y + 4,
-      head: [["Terapia","Crianças ativas"]],
+      head: [["Terapia","Crianças/adolescentes ativos"]],
       body: groupByTherapyStatus("Ativo").map(([tipo,n])=>[tipo, String(n)]),
       theme: "striped",
       headStyles: { fillColor: [22,163,74] },
@@ -3196,10 +3203,10 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     y = doc.lastAutoTable.finalY + 10;
     if(y > 250){ doc.addPage(); y = 18; }
     doc.setFontSize(12); doc.setFont(undefined, "bold");
-    doc.text("Crianças em lista de espera por terapia", 14, y);
+    doc.text("Crianças/adolescentes em lista de espera por terapia", 14, y);
     doc.autoTable({
       startY: y + 4,
-      head: [["Terapia","Crianças aguardando"]],
+      head: [["Terapia","Crianças/adolescentes aguardando"]],
       body: groupByTherapyStatus("Lista de espera").map(([tipo,n])=>[tipo, String(n)]),
       theme: "striped",
       headStyles: { fillColor: [217,119,6] },
@@ -3292,7 +3299,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     let y = 18;
 
     doc.setFontSize(16); doc.setFont(undefined, "bold");
-    doc.text("Relação Nominal de Pacientes por Profissional", 14, y);
+    doc.text("Relação Nominal de Crianças/Adolescentes por Profissional", 14, y);
     doc.setFontSize(10); doc.setFont(undefined, "normal");
     y += 7;
     doc.text(`Gerado em ${hoje}`, 14, y);
@@ -3330,7 +3337,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
       doc.text(`${prof.nome}${prof.especialidade ? " — " + prof.especialidade : ""}`, 14, y);
       doc.autoTable({
         startY: y + 4,
-        head: [["#","Paciente","Nascimento","Idade","Terapia","Situação"]],
+        head: [["#","Criança/adolescente","Nascimento","Idade","Terapia","Situação"]],
         body: vinculos.map((v,i) => [
           String(i+1), v.pac.nome, v.pac.nascimento || "—", calcIdadeExport(v.pac.nascimento), v.tipo,
           statusBucketOf(v.status)
@@ -3345,7 +3352,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
 
     if(!algumComPaciente){
       doc.setFontSize(11); doc.setFont(undefined, "normal");
-      doc.text("Nenhum profissional possui pacientes vinculados no momento.", 14, y);
+      doc.text("Nenhum profissional possui crianças/adolescentes vinculados no momento.", 14, y);
     }
 
     doc.save(`relacao-por-profissional-${new Date().toISOString().slice(0,10)}.pdf`);
@@ -3374,7 +3381,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
 
     if(emEspera.length === 0){
       doc.setFontSize(11); doc.setFont(undefined, "normal");
-      doc.text("Nenhum paciente em lista de espera no momento.", 14, y);
+      doc.text("Nenhuma criança/adolescente em lista de espera no momento.", 14, y);
     } else {
       doc.autoTable({
         startY: y,
@@ -4004,10 +4011,8 @@ function WaitingListTab({ patients, loading, onEdit, professionals, tiposTerapia
   const [q, setQ] = useState("");
   const [fTerapia, setFTerapia] = useState("");
   const [fSituacao, setFSituacao] = useState(""); // "" todas | "so_espera" nenhuma terapia ativa | "parcial" já atendida, aguarda outra
-  const waiting = useMemo(() => patients.filter(p =>
-    p.status === "Lista de espera" || (p.terapiasNecessarias||[]).some(t => t.status === "Lista de espera")
-  ), [patients]);
-  const temTerapiaAtiva = (p) => (p.terapiasNecessarias||[]).some(t => t.status === "Ativo");
+  const waiting = useMemo(() => patients.filter(estaEmEspera), [patients]);
+  const temTerapiaAtiva = temTerapiaAtivaP;
   const qtdSoEspera = useMemo(() => waiting.filter(p => !temTerapiaAtiva(p)).length, [waiting]);
   const qtdParcial = waiting.length - qtdSoEspera;
   const parciais = useMemo(() => waiting.filter(p => p.status !== "Lista de espera"), [waiting]);
@@ -5142,7 +5147,7 @@ function ProfessionalCaseloadTab({ therapies, patients, professionals }){
 
 function DashboardTab({ patients, professionals, therapies, pts, alerts, onGoTo }){
   const ativos    = patients.filter(p=>(p.terapiasNecessarias||[]).some(t=>t.status==="Ativo")).length;
-  const espera    = patients.filter(p=>(p.terapiasNecessarias||[]).length === 0).length;
+  const espera    = patients.filter(soEmEspera).length;
   const pausados  = patients.filter(p=>p.status==="Em pausa").length;
   const inativos  = patients.filter(p=>p.status==="Inativo").length;
 
@@ -5350,7 +5355,7 @@ function App(){
         </div>
         <div className="sidebar-brand-text">
           <h1>Painel de pacientes</h1>
-          <p>Equipe compartilhada · v21</p>
+          <p>Equipe compartilhada · v23</p>
         </div>
         <button className="sidebar-collapse-btn" onClick={()=>setSidebarCollapsed(v=>!v)} title={sidebarCollapsed?"Expandir menu":"Recolher menu"}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{transform:sidebarCollapsed?"rotate(180deg)":"none"}}><polyline points="15 18 9 12 15 6"/></svg>
