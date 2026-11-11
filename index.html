@@ -3143,7 +3143,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     let y = 18;
 
     doc.setFontSize(16); doc.setFont(undefined, "bold");
-    doc.text("Relatório Geral — Sistema de Pacientes", 14, y);
+    doc.text("Relatório Geral — Crianças atendidas", 14, y);
     doc.setFontSize(10); doc.setFont(undefined, "normal");
     y += 7;
     doc.text(`Gerado em ${hoje}`, 14, y);
@@ -3156,9 +3156,9 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
       startY: y,
       head: [["Indicador","Valor"]],
       body: [
-        ["Total de pacientes", String(patients.length)],
-        ["Pacientes ativos (em ao menos 1 terapia)", String(ativos)],
-        ["Pacientes sem nenhuma terapia (espera)", String(espera)],
+        ["Total de crianças", String(patients.length)],
+        ["Crianças ativas (em ao menos 1 terapia)", String(ativos)],
+        ["Crianças sem nenhuma terapia (espera)", String(espera)],
         ["Total de profissionais", String(professionals.length)],
       ],
       theme: "grid",
@@ -4003,9 +4003,13 @@ function PTSTab({ pts, patients, loading, save, remove, notify, preselectPatient
 function WaitingListTab({ patients, loading, onEdit, professionals, tiposTerapia, savePatient, saveTherapy, notify, onColocarAtendimento }){
   const [q, setQ] = useState("");
   const [fTerapia, setFTerapia] = useState("");
+  const [fSituacao, setFSituacao] = useState(""); // "" todas | "so_espera" nenhuma terapia ativa | "parcial" já atendida, aguarda outra
   const waiting = useMemo(() => patients.filter(p =>
     p.status === "Lista de espera" || (p.terapiasNecessarias||[]).some(t => t.status === "Lista de espera")
   ), [patients]);
+  const temTerapiaAtiva = (p) => (p.terapiasNecessarias||[]).some(t => t.status === "Ativo");
+  const qtdSoEspera = useMemo(() => waiting.filter(p => !temTerapiaAtiva(p)).length, [waiting]);
+  const qtdParcial = waiting.length - qtdSoEspera;
   const parciais = useMemo(() => waiting.filter(p => p.status !== "Lista de espera"), [waiting]);
   const filtered = useMemo(() => {
     const t = q.toLowerCase();
@@ -4015,14 +4019,15 @@ function WaitingListTab({ patients, loading, onEdit, professionals, tiposTerapia
         (p.responsavel||"").toLowerCase().includes(t) ||
         (p.cid||"").toLowerCase().includes(t) ||
         (p.unidade||"").toLowerCase().includes(t)) &&
-        (!fTerapia || (p.terapiasNecessarias||[]).some(x => x.tipo === fTerapia && x.status === "Lista de espera"))
+        (!fTerapia || (p.terapiasNecessarias||[]).some(x => x.tipo === fTerapia && x.status === "Lista de espera")) &&
+        (!fSituacao || (fSituacao === "so_espera" ? !temTerapiaAtiva(p) : temTerapiaAtiva(p)))
       )
       .sort((a, b) => {
         if(!a.dataEntrada) return 1;
         if(!b.dataEntrada) return -1;
         return a.dataEntrada.localeCompare(b.dataEntrada);
       });
-  }, [waiting, q, fTerapia]);
+  }, [waiting, q, fTerapia, fSituacao]);
 
   const fmt = (d) => d ? new Date(d+"T00:00").toLocaleDateString('pt-BR') : "—";
   const calcIdade = (nasc) => {
@@ -4105,11 +4110,14 @@ function WaitingListTab({ patients, loading, onEdit, professionals, tiposTerapia
           <option value="">Terapia (todas)</option>
           {byTerapia.map(([tipo]) => <option key={tipo} value={tipo}>{tipo}</option>)}
         </select>
+        <select style={{maxWidth:330}} value={fSituacao} onChange={e=>setFSituacao(e.target.value)} title="Situação da criança na clínica">
+          <option value="">Situação (todas) — {waiting.length}</option>
+          <option value="so_espera">Só em espera, sem nenhuma terapia ativa — {qtdSoEspera}</option>
+          <option value="parcial">Já atendida, aguarda outra terapia — {qtdParcial}</option>
+        </select>
         <span className="count-pill" style={{background:'#f0f0ff', color:'#6366f1', border:'1px solid #c7d2fe'}}>
-          {fTerapia
-            ? <>{filtered.length} criança{filtered.length!==1?"s":""} aguardando por <strong>{fTerapia}</strong></>
-            : <>{filtered.length} paciente{filtered.length!==1?"s":""} em espera</>
-          }
+          {filtered.length} criança{filtered.length!==1?"s":""}
+          {fTerapia ? <> aguardando por <strong>{fTerapia}</strong></> : (fSituacao==="so_espera" ? " só em espera" : fSituacao==="parcial" ? " já atendidas, aguardando outra terapia" : " com alguma terapia em espera")}
         </span>
       </div>
       {loading ? <div style={{display:'flex', flexDirection:'column', gap:10, padding:'6px 0'}}>
@@ -4149,7 +4157,7 @@ function WaitingListTab({ patients, loading, onEdit, professionals, tiposTerapia
                     <td>{p.cid || "—"}</td>
                     <td>
                       <StatusBadge status={p.status}/>
-                      {p.status !== "Lista de espera" && <div style={{fontSize:11, color:'var(--warn)', fontWeight:700, marginTop:4}}>⚠ aguarda outra terapia</div>}
+                      {temTerapiaAtiva(p) && <div style={{fontSize:11, color:'var(--warn)', fontWeight:700, marginTop:4}}>⚠ aguarda outra terapia</div>}
                     </td>
                     <td><TherapyMiniBadges list={p.terapiasNecessarias}/></td>
                     <td>{p.unidade || "—"}</td>
@@ -5342,7 +5350,7 @@ function App(){
         </div>
         <div className="sidebar-brand-text">
           <h1>Painel de pacientes</h1>
-          <p>Equipe compartilhada · v19</p>
+          <p>Equipe compartilhada · v21</p>
         </div>
         <button className="sidebar-collapse-btn" onClick={()=>setSidebarCollapsed(v=>!v)} title={sidebarCollapsed?"Expandir menu":"Recolher menu"}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{transform:sidebarCollapsed?"rotate(180deg)":"none"}}><polyline points="15 18 9 12 15 6"/></svg>
