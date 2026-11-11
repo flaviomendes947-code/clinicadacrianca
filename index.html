@@ -3201,13 +3201,63 @@ function TriagensTab({ notify, patients, professionals, tiposTerapia, currentUse
   </div>;
 }
 
+// ── Triados ainda não acompanhados pela clínica (para os relatórios exportados) ──
+// Criança triada sem cadastro de paciente (comparando CPF/CNS ou nome + nascimento, sem acentos).
+// Cada criança conta uma vez, mesmo com mais de uma triagem.
+const contarTriadosNaoAcompanhados = (triagens, patients) => {
+  const dig = (s) => (s||"").replace(/\D/g, "");
+  const cpfs = new Set(), nomesNasc = new Set();
+  (patients||[]).forEach(p => {
+    if(dig(p.cpf)) cpfs.add(dig(p.cpf));
+    const n = normNomeTri(p.nome);
+    if(n && p.nascimento) nomesNasc.add(n + "|" + p.nascimento);
+  });
+  const contadas = new Set();
+  (triagens||[]).forEach(t => {
+    const n = normNomeTri(t.nome);
+    if(!n) return;
+    const acompanhada = (dig(t.cpf_cns) && cpfs.has(dig(t.cpf_cns))) || (t.nascimento && nomesNasc.has(n + "|" + t.nascimento));
+    if(!acompanhada) contadas.add(n + "|" + (t.nascimento||""));
+  });
+  return contadas.size;
+};
+
 function ExportTab({ patients, professionals, therapies, pts, notify }){
   const [showJson, setShowJson] = useState(false);
   const [pdfModal, setPdfModal] = useState(false);
+  const [gerando, setGerando] = useState(false);
   const [tempoEspera, setTempoEspera] = useState(() => { try{ return localStorage.getItem("relatorio_tempo_espera") || ""; }catch(e){ return ""; } });
-  const confirmarPDF = () => {
+
+  // Busca as triagens no momento da exportação (null se não conseguir)
+  const carregarTriadosNaoAcompanhados = async () => {
+    try{
+      const todas = [];
+      for(let de = 0; ; de += 1000){
+        const { data, error } = await sb.from("triagens").select("id, nome, nascimento, cpf_cns").range(de, de + 999);
+        if(error) throw error;
+        todas.push(...(data||[]));
+        if(!data || data.length < 1000) break;
+      }
+      return contarTriadosNaoAcompanhados(todas, patients);
+    }catch(e){
+      console.error("Erro ao carregar triagens para o relatório", e);
+      notify("Não foi possível ler as triagens; o relatório sai sem os triados não acompanhados.");
+      return null;
+    }
+  };
+
+  const linhasEspera = (espera, triados) => triados === null
+    ? [["Crianças/adolescentes só em lista de espera (nenhuma terapia ativa)", espera]]
+    : [["Crianças/adolescentes aguardando atendimento (total)", espera + triados],
+       ["   - Cadastrados, só em lista de espera (nenhuma terapia ativa)", espera],
+       ["   - Triados, ainda não acompanhados pela clínica", triados]];
+
+  const confirmarPDF = async () => {
     try{ localStorage.setItem("relatorio_tempo_espera", tempoEspera); }catch(e){}
-    generatePDFReport(tempoEspera);
+    setGerando(true);
+    const triados = await carregarTriadosNaoAcompanhados();
+    generatePDFReport(tempoEspera, triados);
+    setGerando(false);
     setPdfModal(false);
   };
 
@@ -3289,7 +3339,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     return Object.entries(map).sort((a,b)=>b[1]-a[1]);
   };
 
-  const buildResumoRows = () => {
+  const buildResumoRows = (triados = null) => {
     const ativos = patients.filter(p=>(p.terapiasNecessarias||[]).some(t=>t.status==="Ativo")).length;
     const espera = patients.filter(soEmEspera).length;
     const pausados = patients.filter(p=>p.status==="Em pausa").length;
@@ -3297,7 +3347,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     const rows = [
       {indicador:"Total de crianças/adolescentes", valor: patients.length},
       {indicador:"Crianças/adolescentes ativos (em ao menos 1 terapia)", valor: ativos},
-      {indicador:"Crianças/adolescentes só em lista de espera (nenhuma terapia ativa)", valor: espera},
+      ...linhasEspera(espera, triados).map(([indicador, valor]) => ({ indicador, valor })),
       {indicador:"Crianças/adolescentes em pausa", valor: pausados},
       {indicador:"Crianças/adolescentes inativos", valor: inativos},
       {indicador:"Total de profissionais", valor: professionals.length},
@@ -3313,11 +3363,14 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     return rows;
   };
 
-  const exportExcelCompleto = () => {
+  const exportExcelCompleto = async () => {
     if(typeof XLSX === "undefined"){ notify("Biblioteca de Excel não carregou. Verifique sua conexão."); return; }
+    setGerando(true);
+    const triados = await carregarTriadosNaoAcompanhados();
+    setGerando(false);
     const wb = XLSX.utils.book_new();
 
-    const resumoWs = XLSX.utils.json_to_sheet(buildResumoRows(), {header:['indicador','valor']});
+    const resumoWs = XLSX.utils.json_to_sheet(buildResumoRows(triados), {header:['indicador','valor']});
     XLSX.utils.sheet_add_aoa(resumoWs, [["Indicador","Valor"]], {origin:"A1"});
     XLSX.utils.book_append_sheet(wb, resumoWs, "Resumo");
 
@@ -3350,7 +3403,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     notify("Excel completo baixado");
   };
 
-  const generatePDFReport = (tempoEspera) => {
+  const generatePDFReport = (tempoEspera, triados = null) => {
     if(typeof window.jspdf === "undefined"){ notify("Biblioteca de PDF não carregou. Verifique sua conexão."); return; }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -3373,9 +3426,10 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
       body: [
         ["Total de crianças/adolescentes", String(patients.length)],
         ["Crianças/adolescentes ativos (em ao menos 1 terapia)", String(ativos)],
-        ["Crianças/adolescentes só em lista de espera (nenhuma terapia ativa)", String(espera)],
+        ...linhasEspera(espera, triados).map(([ind, v]) => [ind, String(v)]),
         ["Total de profissionais", String(professionals.length)],
       ],
+      didParseCell: (d) => { if(d.section === "body" && String(d.row.raw[0]).startsWith("Crianças/adolescentes aguardando atendimento")) d.cell.styles.fontStyle = "bold"; },
       theme: "grid",
       headStyles: { fillColor: [59,111,240] },
       styles: { fontSize: 9 },
@@ -3616,7 +3670,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
     <p style={{color:'var(--muted)', fontSize:13, marginBottom:20}}>Gere um relatório completo pronto para apresentação ou prestação de contas.</p>
     <div className="grid grid-2" style={{marginBottom:8}}>
       <button className="btn btn-primary" onClick={()=>setPdfModal(true)}>📄 Gerar relatório em PDF</button>
-      <button className="btn btn-primary" onClick={exportExcelCompleto}>📊 Baixar Excel completo (.xlsx)</button>
+      <button className="btn btn-primary" onClick={exportExcelCompleto} disabled={gerando}>{gerando ? "Gerando..." : "📊 Baixar Excel completo (.xlsx)"}</button>
     </div>
     <p style={{color:'var(--muted)', fontSize:12, marginBottom:20}}>
       O PDF traz um resumo executivo (indicadores, tempo de espera e terapias ativas/em espera). A relação nominal da lista de espera fica no botão próprio, mais abaixo. O Excel traz todas as tabelas (Resumo, Pacientes, Profissionais, Terapias e PTS) em abas separadas, prontas para editar.
@@ -3680,7 +3734,7 @@ function ExportTab({ patients, professionals, therapies, pts, notify }){
         <span style={{display:'block', fontSize:12, color:'var(--muted)', marginTop:6}}>Se deixar em branco, o relatório sai sem esse campo. O texto fica guardado neste navegador para a próxima exportação.</span>
         <div className="actions-row">
           <button className="btn btn-secondary" onClick={()=>setPdfModal(false)}>Cancelar</button>
-          <button className="btn btn-primary" onClick={confirmarPDF}>📄 Exportar PDF</button>
+          <button className="btn btn-primary" onClick={confirmarPDF} disabled={gerando}>{gerando ? "Gerando..." : "📄 Exportar PDF"}</button>
         </div>
       </div>
     </div>}
@@ -5563,7 +5617,7 @@ function App(){
         </div>
         <div className="sidebar-brand-text">
           <h1>Painel de pacientes</h1>
-          <p>Equipe compartilhada · v24</p>
+          <p>Equipe compartilhada · v25</p>
         </div>
         <button className="sidebar-collapse-btn" onClick={()=>setSidebarCollapsed(v=>!v)} title={sidebarCollapsed?"Expandir menu":"Recolher menu"}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{transform:sidebarCollapsed?"rotate(180deg)":"none"}}><polyline points="15 18 9 12 15 6"/></svg>
